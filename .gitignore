@@ -1,0 +1,8 @@
+bin
+obj
+*.dSYM
+.vscode
+*.DS_Store
+pgbdd
+p.lrup
+*.__pycache__
