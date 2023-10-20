@@ -3,16 +3,35 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-struct clause *clause_create(uint64_t index, struct literal_stack literals, struct clause_ptr_stack chain) {
+int literal_compare(const void *a, const void *b) {
+    literal_t literal_a = *(literal_t *)a;
+    literal_t literal_b = *(literal_t *)b;
+    literal_t var_a = literal_a > 0 ? literal_a : -literal_a;
+    literal_t var_b = literal_b > 0 ? literal_b : -literal_b;
+    if (var_a < var_b)
+        return -1;
+    else if (var_a > var_b)
+        return 1;
+    return 0;
+}
+
+struct clause *clause_create(uint64_t index, struct literal_stack literals, struct clause_ptr_stack chain, bool is_rat) {
     uint32_t size = SIZE(literals);
     struct clause *clause_ptr = malloc(sizeof(struct clause) + sizeof(literal_t) * size);
     ASSERT_ERROR(clause_ptr, "clause_create: malloc failed");
     clause_ptr->index = index;
     clause_ptr->size = size;
     clause_ptr->chain = chain;
-    for (uint32_t i = 0; i < size; i++) {
-        clause_ptr->literals[i] = literals.begin[i];
+    clause_ptr->pivot = is_rat ? ACCESS(literals, 0) : 0;
+    // copying literals and sorting them by absolute value
+    // literal_stack literals are not sorted
+    // sort algorithm: quicksort
+    literal_t *literals_ptr = clause_ptr->literals;
+    for (all_literals_in_stack(literal, literals)) {
+        *literals_ptr = literal;
+        literals_ptr++;
     }
+    qsort(clause_ptr->literals, size, sizeof(literal_t), literal_compare);
     return clause_ptr;
 }
 
@@ -34,15 +53,21 @@ void clause_print(struct clause *clause_ptr) {
         return;
 
     printf("%llu ", clause_ptr->index);
-    for (uint32_t i = 0; i < clause_ptr->size; i++) {
-        printf("%d ", clause_ptr->literals[i]);
+    literal_t pivot = clause_ptr->pivot;
+    if (pivot)
+        printf("%d ", clause_ptr->pivot);
+
+    for (all_literals_in_clause(literal, clause_ptr)) {
+        if (literal == pivot)
+            continue;
+        printf("%d ", literal);
     }
     printf("0 ");
     for (all_clause_ptrs_in_stack(chain_clause_ptr, clause_ptr->chain)) {
         if (IS_NEG_CHAIN_HINT(chain_clause_ptr))
             printf("-%llu ", GET_CHAIN_HINT_PTR(chain_clause_ptr)->index);
         else
-            printf("%llu ", chain_clause_ptr->index);
+            printf("%llu ", GET_CHAIN_HINT_PTR(chain_clause_ptr)->index);
     }
     printf("0\n");
 }
@@ -117,7 +142,7 @@ struct clause *resolve(struct clause *left_clause_ptr, struct clause *right_clau
     struct clause_ptr_stack chain = {0, 0, 0};
     PUSH(chain, left_clause_ptr);
     PUSH(chain, right_clause_ptr);
-    struct clause *result = clause_create(index, literals, chain);
+    struct clause *result = clause_create(index, literals, chain, false);
     RELEASE(literals);
     return result;
 }
@@ -189,7 +214,7 @@ struct clause *parse_dimacs_clause(FILE *file) {
             number = 0;
         } else if (number == 0 && next == '0') {
             ASSERT_ERROR(fgetc(file) == '\n', "expected newline after 0 in dimacs");
-            return clause_create(0, literals, (struct clause_ptr_stack){0, 0, 0});
+            return clause_create(0, literals, (struct clause_ptr_stack){0, 0, 0}, false);
         } else if (next == '-') {
             negated = true;
         } else if (next != '\n') {

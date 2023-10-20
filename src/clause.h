@@ -36,10 +36,11 @@ struct clause {
     struct clause_ptr_stack chain;
     struct todo_stack todos;
     uint32_t size;
+    literal_t pivot;
     literal_t literals[];
 };
 
-struct clause *clause_create(uint64_t index, struct literal_stack literals, struct clause_ptr_stack chain);
+struct clause *clause_create(uint64_t index, struct literal_stack literals, struct clause_ptr_stack chain, bool is_rat);
 void clause_release(struct clause *clause_ptr);
 void clause_print(struct clause *clause_ptr);
 

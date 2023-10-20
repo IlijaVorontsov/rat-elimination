@@ -32,10 +32,8 @@ int main(int argc, char *argv[]) {
     atexit(cleanup);
     proof = proof_from_dimacs_lrat(argv[1], argv[2]);
     update_next_rat(&proof);
-    // proof_print(proof);
     while (proof.next_rat && !quit) {
         struct clause *next_rat_ptr = *GET_PTR(proof.next_rat->begin);
-        proof_update_indices(proof);
         mark_purity(proof);
         for (all_stacks_up_to_next_rat(stack, proof)) {
             transform_chains_and_do_todos(stack_ptr, next_rat_ptr);
@@ -155,7 +153,7 @@ void do_remaining_todos(struct proof *proof_ptr) {
 }
 
 void transform_chains_and_do_todos(struct clause_ptr_stack *stack, struct clause *C) {
-    literal_t l = C->literals[0];
+    literal_t l = C->pivot;
     // todo's first
     struct clause_ptr_stack todo_stack = {0, 0, 0};
     for (all_clause_ptrs_in_stack(clause_ptr, *stack)) {
@@ -217,7 +215,7 @@ void transform_chains_and_do_todos(struct clause_ptr_stack *stack, struct clause
 void mark_purity(struct proof proof) {
     struct clause_ptr_stack impure = {0, 0, 0};
     struct clause *rat_clause_ptr = *GET_PTR(proof.next_rat->begin);
-    literal_t rat_literal = rat_clause_ptr->literals[0];
+    literal_t rat_literal = rat_clause_ptr->pivot;
     PUSH(impure, rat_clause_ptr);
     bool found;
 

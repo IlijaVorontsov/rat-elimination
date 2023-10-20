@@ -56,8 +56,8 @@ struct proof proof_from_dimacs_lrat(const char *dimacs_path,
                 while ((next = fgetc(lrat_file)) != '\n')
                     ;
             } else if (next != '\n') {
-                ASSERT_ERROR(next >= '0' && next <= '9', "expected number in  [%s:%lu]", lrat_path, SIZE(proof));
-                number = number * 10 + next - '0';
+                ASSERT_ERROR(next >= '0' && next <= '9', "expected number in [%s:%lu]", lrat_path, SIZE(proof));
+                number = (number * 10) + (next - '0');
             }
             break;
         case READ_LITERALS:
@@ -71,18 +71,18 @@ struct proof proof_from_dimacs_lrat(const char *dimacs_path,
                 negated = false;
                 number = 0;
             } else {
-                ASSERT_ERROR(next >= '0' && next <= '9', "expected number in  [%s:%lu]", lrat_path, SIZE(proof));
-                number = number * 10 + next - '0';
+                ASSERT_ERROR(next >= '0' && next <= '9', "expected number in [%s:%lu]", lrat_path, SIZE(proof));
+                number = (number * 10) + (next - '0');
             }
             break;
         case READ_CHAIN:
             if (number == 0 && next == '0') {
                 struct clause_ptr_stack stack = {0, 0, 0};
-                PUSH(stack, clause_create(SIZE(proof), literals, chain));
+                PUSH(stack, clause_create(SIZE(proof), literals, chain, rat));
                 stack.begin = rat ? SET_RAT(stack.begin) : stack.begin;
                 PUSH(proof, stack);
                 PUSH(lookup_table, index);
-                ASSERT_ERROR(fgetc(lrat_file) == '\n', "expected newline in  [%s:%lu]", lrat_path, SIZE(proof));
+                ASSERT_ERROR(fgetc(lrat_file) == '\n', "expected newline in [%s:%lu]", lrat_path, SIZE(proof));
                 CLEAR(literals);
                 INIT(chain);
                 rat = false;
@@ -116,7 +116,7 @@ struct proof proof_from_dimacs_lrat(const char *dimacs_path,
                 number = 0;
             } else {
                 ASSERT_ERROR(next >= '0' && next <= '9', "expected number in  [%s:%lu]", lrat_path, SIZE(proof));
-                number = number * 10 + next - '0';
+                number = (number * 10) + (next - '0');
             }
             break;
         default:
