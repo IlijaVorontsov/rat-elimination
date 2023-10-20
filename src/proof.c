@@ -52,16 +52,18 @@ struct proof proof_from_dimacs_lrat(const char *dimacs_path,
                 state = READ_LITERALS;
                 index = number;
                 number = 0;
-            } else if (next == 'c') {
-                while ((next = fgetc(lrat_file)) != '\n')
-                    ;
-            } else if (next != '\n') {
+            } else {
                 ASSERT_ERROR(next >= '0' && next <= '9', "expected number in [%s:%lu]", lrat_path, SIZE(proof));
                 number = (number * 10) + (next - '0');
             }
             break;
         case READ_LITERALS:
-            if (number == 0 && next == '0') {
+            if (number == 0 && next == 'd') {
+                state = READ_INDEX;
+                index = 0;
+                while ((next = fgetc(lrat_file)) != '\n')
+                    ;
+            } else if (number == 0 && next == '0') {
                 state = READ_CHAIN;
                 assert(fgetc(lrat_file) == ' '); // skipping space
             } else if (number == 0 && next == '-') {

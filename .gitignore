@@ -1,8 +1,11 @@
 bin
+lib
 obj
 *.dSYM
 .vscode
 *.DS_Store
-pgbdd
+pgbdd*
 p.lrup
 *.__pycache__
+results
+plots

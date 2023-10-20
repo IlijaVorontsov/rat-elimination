@@ -7,7 +7,7 @@ SRC := $(wildcard $(SRC_DIR)/*.c)
 OBJ := $(SRC:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 
 CC = clang
-CFLAGS = -arch arm64 -std=c99 -O3 
+CFLAGS = -arch arm64 -std=c99 -O1
 
 .PHONY: all clean
 
@@ -27,22 +27,11 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
 $(BIN_DIR) $(OBJ_DIR):
 	mkdir -p $@
 
+small-plot: 
+	@echo "Plotting small-bench results ..."
+	bash -c 'cd plots && pdflatex "\newcommand{\DATAPATH}{../data/$$(ls ../data/ | sort -r | head -n 1)}\input{avg_plot.tex}"'
+	@echo "============================================"
+	@echo "Created plots/avgplot.pdf"
 
 clean:
-	rm -rv $(BIN_DIR) $(OBJ_DIR) || true
-
-test:
-	./bin/rat-elimination tests/c.cnf tests/l.lrat > p.lrup
-	python3 utils/lrat-convert.py p.lrup p.drat
-	./utils/drat-trim tests/c.cnf p.drat
-	rm p.lrup p.drat
-
-
-run: # takes a dimacs and drat proof
-	./utils/dimacs-prepare.py $(dimacs) p.cnf
-	./utils/drat-trim $(dimacs) $(drat) -L p.lrat
-	./utils/lrat-prepare.py p.lrat p.lrat
-	./bin/rat-elimination $(dimacs) p.lrat > p.lrup
-	python3 utils/lrat-convert.py p.lrup p.drat
-	./utils/drat-trim $(dimacs) p.drat
-	rm p.lrat p.drat p.cnf
+	rm -rv $(EXE) $(OBJ_DIR) || true
