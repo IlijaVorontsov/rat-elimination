@@ -74,16 +74,28 @@ void clause_print(struct clause *clause_ptr) {
 
 struct clause_ptr_stack get_neg_chain(struct clause *rat_clause_ptr, struct clause *clause_ptr) {
     struct clause_ptr_stack chain = {0, 0, 0};
+    PUSH(chain, clause_ptr);
+    bool pre_chain_copied = false;
     bool found = false;
     for (all_clause_ptrs_in_stack(chain_clause_ptr, rat_clause_ptr->chain)) {
+        if (!pre_chain_copied) {
+            if (IS_NEG_CHAIN_HINT(chain_clause_ptr))
+                pre_chain_copied = true;
+            else {
+                PUSH(chain, chain_clause_ptr);
+                continue;
+            }
+        }
+
         if (IS_NEG_CHAIN_HINT(chain_clause_ptr) && GET_CHAIN_HINT_PTR(chain_clause_ptr) == clause_ptr) {
             found = true;
-            PUSH(chain, clause_ptr);
+            // PUSH(chain, clause_ptr);
         } else if (found && IS_NEG_CHAIN_HINT(chain_clause_ptr))
             return chain; // reached end of chain with negative hint
         else if (found)
             PUSH(chain, chain_clause_ptr);
     }
+    assert(SIZE(chain) > 0);
     return chain; // reached end of chain without negative hint
 }
 

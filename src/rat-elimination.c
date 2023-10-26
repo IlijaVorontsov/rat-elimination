@@ -45,7 +45,6 @@ int main(int argc, char *argv[]) {
 
     proof_print(proof);
 
-    // clause_ptr_stack_print((*(proof.end - 1)->begin)->chain, NULL);
     exit(EXIT_SUCCESS);
 }
 
@@ -61,8 +60,7 @@ struct clause *E_star(struct clause *E_ptr, struct clause *D_ptr, literal_t l, s
             }
         }
 #ifdef DEBUG
-        printf("[%llu, %llu] \n", max->index, min->index);
-        fflush(stdout);
+        fprintf(stderr, "[%llu, %llu] \n", max->index, min->index);
 #endif /* DEBUG */
         struct clause *result = resolve(D_ptr, E_ptr, l);
         if (max == C_ptr) { // rat clause is the other one

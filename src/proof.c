@@ -80,6 +80,8 @@ struct proof proof_from_dimacs_lrat(const char *dimacs_path,
         case READ_CHAIN:
             if (number == 0 && next == '0') {
                 struct clause_ptr_stack stack = {0, 0, 0};
+                if (EMPTY(chain))
+                    rat = true;
                 PUSH(stack, clause_create(SIZE(proof), literals, chain, rat));
                 stack.begin = rat ? SET_RAT(stack.begin) : stack.begin;
                 PUSH(proof, stack);

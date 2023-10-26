@@ -7,7 +7,7 @@ SRC := $(wildcard $(SRC_DIR)/*.c)
 OBJ := $(SRC:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 
 CC = clang
-CFLAGS = -arch arm64 -std=c99 -O1
+CFLAGS = -std=c99 -O1
 
 .PHONY: all clean
 
