@@ -1,0 +1,12 @@
+bin
+lib
+obj
+*.dSYM
+.vscode
+*.DS_Store
+pgbdd*
+p.lrup
+*.__pycache__
+results
+plots
+tmp
