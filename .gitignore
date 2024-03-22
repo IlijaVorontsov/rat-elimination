@@ -10,3 +10,6 @@ p.lrup
 results
 plots
 tmp
+tests/*.lrup
+tests/*.drup
+tests/*.drat

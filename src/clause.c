@@ -30,23 +30,24 @@ int literal_compare(const void *a, const void *b) {
     return (*(literal_t *)a > *(literal_t *)b);
 }
 
-void literal_print(literal_t literal) {
+void literal_fprint(FILE *file, literal_t literal) {
     if (IS_SIGNED(literal))
-        printf("-");
-    printf("%d ", VAR(literal) + 1);
+        fprintf(file, "-");
+    fprintf(file, "%d ", VAR(literal) + 1);
 }
 
 struct clause *clause_create(uint64_t index, struct literal_stack literals, struct clause_ptr_stack chain, bool is_rat) {
     uint32_t size = SIZE(literals);
     struct clause *clause_ptr = malloc(sizeof(struct clause) + sizeof(literal_t) * size);
     ASSERT_ERROR(clause_ptr, "clause_create: malloc failed");
+    clause_ptr->purity = pure;
     clause_ptr->index = index;
     clause_ptr->size = size;
     clause_ptr->chain = chain;
     clause_ptr->pivot = is_rat ? ACCESS(literals, 0) : literal_undefined;
-    // copying literals and sorting them by absolute value
-    // literal_stack literals are not sorted
-    // sort algorithm: quicksort
+    clause_ptr->todos = (struct todo_stack){0, 0, 0};
+    clause_ptr->prev = NULL;
+    clause_ptr->next = NULL;
     literal_t *literals_ptr = clause_ptr->literals;
     for (all_literals_in_stack(literal, literals)) {
         *literals_ptr = literal;
@@ -70,27 +71,32 @@ void clause_release(struct clause *clause_ptr) {
 }
 
 void clause_print(struct clause *clause_ptr) {
+    clause_fprint(stdout, clause_ptr);
+}
+
+void clause_fprint(FILE *file, struct clause *clause_ptr) {
     if (!clause_ptr)
         return;
 
-    printf("%llu ", clause_ptr->index);
+    fprintf(file, "%u ", clause_ptr->index);
     literal_t pivot = clause_ptr->pivot;
-    if (pivot != literal_undefined)
-        literal_print(clause_ptr->pivot);
+    if (pivot != literal_undefined) {
+        literal_fprint(file, clause_ptr->pivot);
+    }
 
     for (all_literals_in_clause(literal, clause_ptr)) {
         if (literal == pivot)
             continue;
-        literal_print(literal);
+        literal_fprint(file, literal);
     }
-    printf("0 ");
+    fprintf(file, "0 ");
     for (all_clause_ptrs_in_stack(chain_clause_ptr, clause_ptr->chain)) {
         if (IS_NEG_CHAIN_HINT(chain_clause_ptr))
-            printf("-%llu ", GET_CHAIN_HINT_PTR(chain_clause_ptr)->index);
+            fprintf(file, "-%u ", GET_CHAIN_HINT_PTR(chain_clause_ptr)->index);
         else
-            printf("%llu ", GET_CHAIN_HINT_PTR(chain_clause_ptr)->index);
+            fprintf(file, "%u ", GET_CHAIN_HINT_PTR(chain_clause_ptr)->index);
     }
-    printf("0\n");
+    fprintf(file, "0\n");
 }
 
 struct clause_ptr_stack get_neg_chain(struct clause *rat_clause_ptr, struct clause *clause_ptr) {
@@ -116,19 +122,13 @@ struct clause_ptr_stack get_neg_chain(struct clause *rat_clause_ptr, struct clau
         else if (found)
             PUSH(chain, chain_clause_ptr);
     }
-    assert(SIZE(chain) > 0);
-    return chain; // reached end of chain without negative hint
-}
-
-void clause_ptr_stack_print(struct clause_ptr_stack stack, index_t *index) {
-    for (all_clause_ptrs_in_stack(clause_ptr, stack)) {
-        if (!clause_ptr)
-            continue;
-        clause_ptr = GET_CLAUSE_PTR(clause_ptr);
-        if (index)
-            clause_ptr->index = (*index)++;
-        clause_print(clause_ptr);
+    if (!found) {
+        fprintf(stderr, "get_neg_chain: clause not found in chain\n");
+        clause_fprint(stderr, clause_ptr);
+        clause_fprint(stderr, rat_clause_ptr);
     }
+    assert(found && SIZE(chain) > 0);
+    return chain; // reached end of chain without negative hint
 }
 
 struct clause *resolve(struct clause *left_clause_ptr, struct clause *right_clause_ptr, literal_t resolvent) {
@@ -144,6 +144,9 @@ struct clause *resolve(struct clause *left_clause_ptr, struct clause *right_clau
     result_ptr->chain.begin[1] = right_clause_ptr;
     result_ptr->chain.end = result_ptr->chain.begin + 2;
     result_ptr->chain.allocated = result_ptr->chain.end;
+    result_ptr->next = NULL;
+    result_ptr->prev = NULL;
+    result_ptr->purity = pure;
 
     literal_t neg_resolvent = NEG(resolvent);
     literal_t left, right;
@@ -192,16 +195,6 @@ struct clause *resolve(struct clause *left_clause_ptr, struct clause *right_clau
     return result_ptr;
 }
 
-struct literal_stack *clause_get_literals(struct clause *clause_ptr) {
-    struct literal_stack *literals_ptr = malloc(sizeof(struct literal_stack));
-    ASSERT_ERROR(literals_ptr, "clause_get_literals: malloc failed");
-    INIT(*literals_ptr);
-    for (all_literals_in_clause(literal, clause_ptr)) {
-        PUSH(*literals_ptr, literal);
-    }
-    return literals_ptr;
-}
-
 literal_t clause_get_reverse_resolvent(struct clause *other) {
     for (all_literals_in_clause(literal_other, other)) {
         if (!literal_array[literal_other]) {
@@ -229,31 +222,4 @@ bool literal_in_clause(literal_t literal, struct clause *clause_ptr) {
     }
 
     return false;
-}
-
-bool clause_in_chain(struct clause *clause_ptr, struct clause_ptr_stack chain) {
-    for (all_clause_ptrs_in_stack(clause_in_chain, chain)) {
-        if (clause_in_chain == clause_ptr)
-            return true;
-    }
-    return false;
-}
-
-void clause_ptr_stack_release(struct clause_ptr_stack stack) {
-    for (all_clause_ptrs_in_stack(clause_ptr, stack)) {
-        clause_release(clause_ptr);
-    }
-    RELEASE(stack);
-}
-
-void todos_print(struct clause *clause_ptr) {
-    if (!clause_ptr)
-        return;
-    clause_ptr = GET_CLAUSE_PTR(clause_ptr);
-    printf("[%llu] Todos: \n", clause_ptr->index);
-    for (all_todos_in_stack(todo, clause_ptr->todos)) {
-        printf("\t");
-        clause_print(todo.result);
-    }
-    printf("\n");
 }

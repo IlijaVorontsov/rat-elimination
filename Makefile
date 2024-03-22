@@ -10,14 +10,14 @@ OBJ := $(SRC:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 DRUP := $(wildcard $(TEST_DIR)/*.drup)
 CNF := $(wildcard $(TEST_DIR)/*.cnf)
 
-CC = clang
-CFLAGS = -std=c99 -O1
+CC = gcc
+CFLAGS = -D_POSIX_C_SOURCE
 
 .PHONY: all clean
 
 all: $(EXE)
 
-debug : CFLAGS += -DDEBUG -g -pedantic -Wno-gnu-zero-variadic-macro-arguments -Wall
+debug : CFLAGS += -DDEBUG -g -pedantic -Wall
 debug : $(EXE)
 
 $(EXE): $(OBJ) | $(BIN_DIR)
@@ -31,7 +31,7 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
 $(BIN_DIR) $(OBJ_DIR) $(TMP_DIR) $(TEST_DIR):
 	mkdir -p $@
 
-$(TMP_DIR)/drat-trim.c:
+$(TMP_DIR)/drat-trim.c: $(TMP_DIR)
 	if [ ! -f $@ ]; then \
 		wget -O $@ https://www.cs.utexas.edu/~marijn/drat-trim/drat-trim.c; \
 	fi
@@ -39,17 +39,29 @@ $(TMP_DIR)/drat-trim.c:
 $(BIN_DIR)/drat-trim: $(TMP_DIR)/drat-trim.c | $(BIN_DIR) $(TMP_DIR)
 	$(CC) -O2 $< -o $@
 
+$(TMP_DIR)/lrat-check.c: $(TMP_DIR)
+	if [ ! -f $@ ]; then \
+		wget -O $@ https://www.cs.utexas.edu/~marijn/drat-trim/lrat-check.c; \
+	fi
+
+$(BIN_DIR)/lrat-check: $(TMP_DIR)/lrat-check.c | $(BIN_DIR)
+	$(CC) -O2 $< -o $@
+
 $(TEST_DIR)/%.lrat: $(BIN_DIR)/drat-trim $(TEST_DIR)/%.cnf $(TEST_DIR)/%.drat 
 	$^ -L $@
-	sed -i '' '/d/d' $@ 
+	sed -i '/d/d' $@ 
 	sort -n -o $@ $@
 
 $(TEST_DIR)/%.lrup: $(EXE) $(TEST_DIR)/%.cnf $(TEST_DIR)/%.lrat
-	$^ > $@
+	@ if $^ > $@; then \
+		echo "SUCCESS" ; \
+	else \
+		echo "FAILED" ; \
+	fi
 
 $(TEST_DIR)/%.drup: $(TEST_DIR)/%.lrup
 	sed 's/ 0.*/ 0/' $< > $@
-	sed -i '' -E 's/[0-9]+[[:space:]]//' $@
+	sed -i -E 's/[0-9]+[[:space:]]//' $@
 
 lrups: $(EXE)
 	@echo "Converting LRAT's ..."
@@ -57,7 +69,9 @@ lrups: $(EXE)
 		base=$$(echo $$file | sed 's/\.cnf$$//'); \
 		echo "Converting $$base.lrat ..."; \
 		if [ -f $$base.lrat ] && [ -f $$file ]; then \
-			make $$base.lrup > /dev/null; \
+			if ! make $$base.lrup > /dev/null; then \
+				echo "Failed to convert $$base.lrat to $$base.lrup"; \
+			fi \
 		fi \
 	done
 
@@ -67,7 +81,10 @@ drups: $(EXE)
 		base=$$(echo $$file | sed 's/\.cnf$$//'); \
 		echo "Converting $$base.lrat ..."; \
 		if [ -f $$base.lrat ] && [ -f $$file ]; then \
-			make $$base.drup > /dev/null; \
+			if make $$base.lrup > /dev/null; then \
+				echo "Converting $$base.lrup to $$base.drup ..."; \
+				make $$base.drup > /dev/null; \
+			fi \
 		fi \
 	done
 
@@ -78,6 +95,18 @@ verify: $(BIN_DIR)/drat-trim
 			echo "$$file SUCCESS" ; \
 		else \
 			echo "$$file FAILED" ; \
+		fi ; \
+	done
+
+check: $(BIN_DIR)/lrat-check
+	make lrups > /dev/null
+	@echo "Checking for LRUP files ..."
+	@for file in $(CNF) ; do \
+		base=$$(echo $$file | sed 's/\.cnf$$//'); \
+		if $^ $$file $$base.lrup > /dev/null; then \
+			echo "$$base.lrup OK" ; \
+		else \
+			echo "$$base.lrup FAILED" ; \
 		fi ; \
 	done
 

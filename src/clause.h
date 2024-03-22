@@ -27,7 +27,8 @@
 #define LITERAL(sign, var) (((var) << 1) | (sign))
 #define SIGN(sign, literal) ((literal) | (sign))
 
-#define index_t uint64_t
+#define index_t uint32_t
+void literal_print(literal_t literal);
 
 struct literal_stack {
     literal_t *begin;
@@ -52,8 +53,16 @@ struct todo_stack {
     struct todo *allocated;
 };
 
+enum purity {
+    pure = 0,
+    semipure = 1,
+    impure = 2
+};
+
 struct clause {
+    enum purity purity;
     index_t index;
+    struct clause *next, *prev;
     struct clause_ptr_stack chain;
     struct todo_stack todos;
     uint32_t size;
@@ -64,6 +73,7 @@ struct clause {
 struct clause *clause_create(uint64_t index, struct literal_stack literals, struct clause_ptr_stack chain, bool is_rat);
 void clause_release(struct clause *clause_ptr);
 void clause_print(struct clause *clause_ptr);
+void clause_fprint(FILE *file, struct clause *clause_ptr);
 
 void load_literal(literal_t literal);
 void load_clause(struct clause *clause_ptr);
@@ -71,16 +81,10 @@ void clear_literal_array(void);
 
 struct clause *resolve(struct clause *left_clause_ptr, struct clause *right, literal_t resolvent);
 
-struct literal_stack *clause_get_literals(struct clause *clause_ptr);
 literal_t clause_get_reverse_resolvent(struct clause *other);
 struct clause_ptr_stack get_neg_chain(struct clause *rat_clause_ptr, struct clause *clause_ptr);
 
 bool literal_in_clause(literal_t literal, struct clause *clause_ptr);
-bool clause_in_chain(struct clause *clause_ptr, struct clause_ptr_stack chain);
-
-void clause_ptr_stack_print(struct clause_ptr_stack stack, index_t *index);
-void clause_ptr_stack_release(struct clause_ptr_stack stack);
-void todos_print(struct clause *clause_ptr);
 
 #define all_literals_in_stack(L, S) \
     all_elements_on_stack(literal_t, L, S)
@@ -92,6 +96,11 @@ void todos_print(struct clause *clause_ptr);
 
 #define all_clause_ptrs_in_stack(C, S) \
     all_pointers_on_stack(struct clause, C, S)
+
+#define all_clause_ptrs_in_stack_reversed(E, S)                                 \
+    struct clause *E, **E##_ptr = (S).end - 1, **const E##_end = (S).begin - 1; \
+    (E##_ptr != E##_end) && (E = *E##_ptr, 1);                                  \
+    --E##_ptr
 
 #define all_todos_in_stack(T, S) \
     all_elements_on_stack(struct todo, T, S)
