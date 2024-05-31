@@ -52,12 +52,14 @@
 /*------------------------------------------------------------------------*/
 
 #define INIT(S)                                  \
-    do {                                         \
+    do                                           \
+    {                                            \
         (S).end = (S).begin = (S).allocated = 0; \
     } while (0)
 
 #define RELEASE(S)                               \
-    do {                                         \
+    do                                           \
+    {                                            \
         free((S).begin);                         \
         (S).begin = (S).end = (S).allocated = 0; \
     } while (0)
@@ -67,7 +69,8 @@
 // Duplicate size of stack.
 
 #define ENLARGE(S)                                                       \
-    do {                                                                 \
+    do                                                                   \
+    {                                                                    \
         const size_t old_size = SIZE(S);                                 \
         const size_t old_capacity = CAPACITY(S);                         \
         const size_t new_capacity = old_capacity ? 2 * old_capacity : 1; \
@@ -79,7 +82,8 @@
     } while (0)
 
 #define PUSH(S, E)        \
-    do {                  \
+    do                    \
+    {                     \
         if (FULL(S))      \
             ENLARGE(S);   \
         *(S).end++ = (E); \
@@ -90,7 +94,8 @@
 // Flush all elements.
 
 #define CLEAR(S)             \
-    do {                     \
+    do                       \
+    {                        \
         (S).end = (S).begin; \
     } while (0)
 
@@ -154,5 +159,17 @@ typedef struct int_stack // Generic stack with 'int' elements.
     ++E##_ptr
 
 /*------------------------------------------------------------------------*/
+
+/*------------------------------------------------------------------------*/
+// RAT Elimination Specific Implementation
+struct clause_stack
+{
+    clause_t **begin, **end, **allocated;
+};
+
+struct literal_stack
+{
+    literal_t *begin, *end, *allocated;
+};
 
 #endif

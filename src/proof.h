@@ -4,11 +4,14 @@
 #include <stdint.h>
 
 #include "clause.h"
-#include "stack.h"
 
-struct proof {
-    struct clause_ptr_stack rat_clauses;
-    struct clause *begin, *end, *next_rat_ptr, *last_dimacs;
+struct proof
+{
+    unsigned rat_count;
+    index_t current_rat_clause_index;
+    literal_t current_rat_pivot;
+    clause_t **rat_clauses;
+    clause_t *begin, *end, *current_rat_clause, *last_dimacs;
 };
 
 struct proof proof_from_dimacs_lrat(const char *dimacs_path,
@@ -22,16 +25,11 @@ void proof_release(struct proof proof);
 /**
  * @brief Prints the proof in lrat format to stdout.
  */
-void proof_print(struct proof proof);
+void proof_fprint(FILE *stream, struct proof proof);
 
 /**
  * @brief Prints the proof including the dimacs clauses to stdout.
  */
-void proof_print_all(struct proof proof);
-
-/**
- * @brief Updates the indices of the clauses in the proof.
- */
-void proof_update_indices(struct proof proof);
+void proof_fprint_all(FILE *stream, struct proof proof);
 
 #endif /* __proof_h__ */

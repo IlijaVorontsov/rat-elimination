@@ -1,121 +1,104 @@
 #ifndef __clause_h__
 #define __clause_h__
 
-#include "stack.h"
+#include "literal.h"
 #include <stdbool.h>
-#include <stdint.h>
+#include <stdio.h>
 
-/**
- * @brief Type of literals.
- * Correspondance
- * |   dimacs    | literal_t  |
- * |-------------|------------|
- * | 1           | 0          |
- * | -1          | 1          |
- * | ...         | ...        |
- * | 2147483647  | 4294967292 |
- * | -2147483647 | 4294967293 |
- *
- * 4294967295 is reserved for undefined literals
- */
-#define literal_t uint32_t
-#define literal_undefined UINT32_MAX
-
-#define NEG(literal) ((literal) ^ 1)
-#define IS_SIGNED(literal) ((literal) & 1)
-#define VAR(literal) ((literal) >> 1)
-#define LITERAL(sign, var) (((var) << 1) | (sign))
-#define SIGN(sign, literal) ((literal) | (sign))
-
-#define index_t uint32_t
-void literal_print(literal_t literal);
-
-struct literal_stack {
-    literal_t *begin;
-    literal_t *end;
-    literal_t *allocated;
+enum purity
+{
+    pure = 'p',
+    semipure = 's',
+    impure = 'i',
+    todo = 't'
 };
 
-struct clause_ptr_stack {
-    struct clause **begin;
-    struct clause **end;
-    struct clause **allocated;
+#define index_t unsigned long long // 64-bit
+
+struct subsumption_merge_chain
+{
+    unsigned size; // pivot_count = chain_size - 1
+    literal_t *pivots;
+    struct clause **clauses;
 };
 
-struct todo {
-    struct clause *other;
-    struct clause *result;
-};
-
-struct todo_stack {
-    struct todo *begin;
-    struct todo *end;
-    struct todo *allocated;
-};
-
-enum purity {
-    pure = 0,
-    semipure = 1,
-    impure = 2
-};
-
-struct clause {
+typedef struct clause
+{
     enum purity purity;
+    bool is_rat;
     index_t index;
-    struct clause *next, *prev;
-    struct clause_ptr_stack chain;
-    struct todo_stack todos;
-    uint32_t size;
-    literal_t pivot;
-    literal_t literals[];
-};
+    struct clause *prev, *next;
+    literal_t hint;
+    struct clause *hint_clause;
+    struct subsumption_merge_chain chain;
+    unsigned literal_count;
+    literal_t *literals;
+} clause_t;
 
-struct clause *clause_create(uint64_t index, struct literal_stack literals, struct clause_ptr_stack chain, bool is_rat);
-void clause_release(struct clause *clause_ptr);
-void clause_print(struct clause *clause_ptr);
-void clause_fprint(FILE *file, struct clause *clause_ptr);
+#define is_dimacs_clause(C) (!(C).is_rat && (C).chain.size == 0)
+#define is_rat_clause(C) ((C).is_rat)
+#define is_rup_clause(C) (!(C).is_rat && (C).chain_size > 0)
 
-void load_literal(literal_t literal);
-void load_clause(struct clause *clause_ptr);
-void clear_literal_array(void);
+clause_t *clause_create(unsigned literal_count, literal_t *literals, unsigned chain_size, clause_t **chain, bool is_rat);
+void clause_release(clause_t *clause_ptr);
+void clause_fprint(FILE *file, clause_t clause);
+void clause_fprint_with_pivots(FILE *file, clause_t clause);
+void clause_fprint_debug(FILE *file, clause_t clause);
 
-struct clause *resolve(struct clause *left_clause_ptr, struct clause *right, literal_t resolvent);
+void clause_reconstruct_pivots(clause_t *clause_ptr);
+clause_t *resolve(clause_t left, clause_t right, literal_t resolvent, clause_t **chain, literal_t *pivots, unsigned chain_size);
 
-literal_t clause_get_reverse_resolvent(struct clause *other);
-struct clause_ptr_stack get_neg_chain(struct clause *rat_clause_ptr, struct clause *clause_ptr);
-
-bool literal_in_clause(literal_t literal, struct clause *clause_ptr);
-
-#define all_literals_in_stack(L, S) \
-    all_elements_on_stack(literal_t, L, S)
-
-#define all_literals_in_clause(L, C)                                             \
-    literal_t L, *L##_ptr = (C)->literals, *L##_end = (C)->literals + (C)->size; \
-    (L##_ptr != L##_end) && ((L = *L##_ptr), 1);                                 \
-    ++L##_ptr
-
-#define all_clause_ptrs_in_stack(C, S) \
-    all_pointers_on_stack(struct clause, C, S)
-
-#define all_clause_ptrs_in_stack_reversed(E, S)                                 \
-    struct clause *E, **E##_ptr = (S).end - 1, **const E##_end = (S).begin - 1; \
-    (E##_ptr != E##_end) && (E = *E##_ptr, 1);                                  \
-    --E##_ptr
-
-#define all_todos_in_stack(T, S) \
-    all_elements_on_stack(struct todo, T, S)
+bool literal_in_clause(literal_t literal, clause_t clause);
 
 #define TAG_CHAIN_HINT_NEG 1
 #define SET_NEG_CHAIN_HINT(P) ((struct clause *)((uintptr_t)(P) | TAG_CHAIN_HINT_NEG))
 #define IS_NEG_CHAIN_HINT(P) ((uintptr_t)(P) & TAG_CHAIN_HINT_NEG)
 #define GET_CHAIN_HINT_PTR(P) ((struct clause *)((uintptr_t)(P) & ~TAG_CHAIN_HINT_NEG))
 
-#define MASK_PURITY 3
-#define TAG_PURE 0
-#define TAG_SEMIPURE 1
-#define TAG_IMPURE 2
-#define SET_PURITY_TAG(P, T) ((struct clause *)((uintptr_t)(P) | (T)))
-#define GET_PURITY_TAG(P) ((uintptr_t)(P) & MASK_PURITY)
-#define GET_CLAUSE_PTR(P) ((struct clause *)((uintptr_t)(P) & ~MASK_PURITY))
+#define all_literals_in_clause(L, C)                                                     \
+    literal_t L, *L##_begin = (C).literals, *L##_end = (C).literals + (C).literal_count; \
+    (L##_begin != L##_end) && (L = *L##_begin, true);                                    \
+    ++L##_begin
+
+#define all_chain_clause_ptrs_in_clause_chain(CP, C)                                                 \
+    clause_t *CP, **CP##_begin = (C).chain.clauses, **CP##_end = (C).chain.clauses + (C).chain.size; \
+    (CP##_begin != CP##_end) && (CP = *CP##_begin, true);                                            \
+    ++CP##_begin
+
+extern bool *bit_vector;
+
+#define bit_vector_init(max_variable)                        \
+    do                                                       \
+    {                                                        \
+        bit_vector = calloc(max_variable + 1, sizeof(bool)); \
+    } while (0)
+
+#define bit_vector_set_clause_literals(C)                \
+    do                                                   \
+    {                                                    \
+        for (unsigned i = 0; i < (C).literal_count; i++) \
+            bit_vector[(C).literals[i]] = true;          \
+    } while (0)
+
+#define bit_vector_set_clause_pivots(C)               \
+    do                                                \
+    {                                                 \
+        for (unsigned i = 0; i < (C).chain.size; i++) \
+            bit_vector[(C).chain.pivots[i]] = true;   \
+    } while (0)
+
+#define bit_vector_clear_clause_literals(C)              \
+    do                                                   \
+    {                                                    \
+        for (unsigned i = 0; i < (C).literal_count; i++) \
+            bit_vector[(C).literals[i]] = false;         \
+    } while (0)
+
+#define bit_vector_clear_clause_pivots(C)                 \
+    do                                                    \
+    {                                                     \
+        for (unsigned i = 0; i < (C).chain.size - 1; i++) \
+            bit_vector[(C).chain.pivots[i]] = false;      \
+    } while (0)
 
 #endif /* __clause_h__ */

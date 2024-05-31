@@ -3,258 +3,327 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "msg.h"
+#include "stack.h"
 
-volatile sig_atomic_t quit = 0;
-void handle_signal(int signal);
-
+bool *bit_vector;
 struct proof proof;
-bool *literal_array;
-struct literal_stack set_literals;
 
-void cleanup(void);
-
-void update_next_rat(struct proof *proof);
 void mark_purity(struct proof proof);
-void transform_chain_and_do_todos(struct clause *clause_ptr, literal_t l);
-void do_remaining_todos(struct proof proof);
+void chain_distribution(clause_t *distributing_clause_ptr, literal_t distributing_literal, clause_t *chain_clause_ptr, unsigned index);
+void finish_todos(clause_t *current_ptr);
 
-void D(struct clause_ptr_stack *rho_prime, struct clause *D_ptr, literal_t l,
-       struct clause **chain_begin, struct clause **chain_end);
+struct clause_stack todo_clauses;
 
-int main(int argc, char *argv[]) {
-    // to save progress on ctrl-c or kill
-    struct sigaction sa;
-    memset(&sa, 0, sizeof(sa));
-    sa.sa_handler = handle_signal;
-    sigaction(SIGINT, &sa, NULL);
-    sigaction(SIGTERM, &sa, NULL);
-
+int main(int argc, char *argv[])
+{
     ASSERT_ERROR(argc == 3, "Usage: %s <dimacs-file> <lrat-file>\n", argv[0]);
 
-    atexit(cleanup);
+    bit_vector = calloc(UINT32_MAX, sizeof(bool)); // calloc(proof.max_variable + 1) << 1, sizeof(bool));
+    ASSERT_ERROR(bit_vector, "main: calloc failed");
+
     proof = proof_from_dimacs_lrat(argv[1], argv[2]);
-    literal_array = calloc(UINT32_MAX, sizeof(bool)); // calloc(proof.max_variable + 1) << 1, sizeof(bool));
-    INIT(set_literals);
-    ASSERT_ERROR(literal_array, "main: calloc failed");
-    while (!EMPTY(proof.rat_clauses) && !quit) {
-        proof.next_rat_ptr = POP(proof.rat_clauses);
-        proof_update_indices(proof);
-        fprintf(stderr, "%lu RAT clauses remaining\n", SIZE(proof.rat_clauses));
-        fprintf(stderr, "Next rat: %u\n", proof.next_rat_ptr->index);
-        literal_t l = proof.next_rat_ptr->pivot;
+    INIT(todo_clauses);
+    while (proof.rat_count > 0)
+    {
+        proof.current_rat_clause = proof.rat_clauses[--proof.rat_count];
+        proof.current_rat_pivot = proof.current_rat_clause->hint;
+        proof.current_rat_clause_index = proof.current_rat_clause->index;
+        fprintf(stderr, "current rat clause index: %llu\n", proof.current_rat_clause_index);
+        fprintf(stderr, "remaining rat clauses: %u\n", proof.rat_count);
+
         mark_purity(proof);
-        struct clause *current = proof.end;
-        struct clause *next;
-        while (current != proof.next_rat_ptr) {
-            next = current->prev;
-            transform_chain_and_do_todos(current, l);
-            current = next;
-        }
-        do_remaining_todos(proof);
-    }
+        clause_t *current_ptr = proof.end,
+                 current = *current_ptr;
+        clause_t *clause_after_rat = proof.current_rat_clause->next;
+        while (true) // todo's inserted after the rat_clause have index of a lower clause than the rat_clause
+        {
 
-    proof_print(proof);
-
-    exit(EXIT_SUCCESS);
-}
-
-struct clause *E_star(struct clause *E_ptr, struct clause *D_ptr, literal_t l) {
-    if (literal_in_clause(NEG(l), E_ptr)) {
-        index_t D_index = D_ptr->index;
-        index_t E_index = E_ptr->index;
-        struct clause *min = D_index < E_index ? D_ptr : E_ptr;
-        struct clause *max = D_index < E_index ? E_ptr : D_ptr;
-
-        // looking for todo in maximal clause
-        for (all_todos_in_stack(todo, max->todos)) {
-            if (todo.other == min) {
-                return todo.result;
-            }
-        }
-
-        // creating resulting clause
-        struct clause *result = resolve(D_ptr, E_ptr, l);
-        result->pivot = l;
-        struct todo todo = {min, result};
-        PUSH(max->todos, todo);
-        return todo.result;
-    } else {
-        return E_ptr;
-    }
-}
-
-#define all_clause_ptrs_from_to(clause_ptr, begin, end)                                                             \
-    struct clause *clause_ptr, **clause_ptr##_ptr = begin, **clause_ptr##_end = end, **clause_ptr##_last = end - 1; \
-    (clause_ptr##_ptr != clause_ptr##_end) && ((clause_ptr = *clause_ptr##_ptr), true);                             \
-    ++clause_ptr##_ptr
-
-void D(struct clause_ptr_stack *rho_prime, struct clause *D_ptr, literal_t l,
-       struct clause **chain_begin, struct clause **chain_end) {
-    for (all_clause_ptrs_from_to(E_ptr, chain_begin, chain_end)) {
-        if (E_ptr_ptr == E_ptr_last) {
-            PUSH(*rho_prime, E_star(E_ptr, D_ptr, l));
-            return;
-        }
-        literal_t k = clause_get_reverse_resolvent(E_ptr);
-        if (k == NEG(l) || literal_in_clause(k, D_ptr)) { // k \in D \cup {-l}
-            continue;
-        } else if (NEG(k) != l && literal_in_clause(NEG(k), D_ptr)) { // -k \in D \\ {-l}
-            PUSH(*rho_prime, E_star(E_ptr, D_ptr, l));
-            return;
-        } else if (!literal_in_clause(k, D_ptr) && !literal_in_clause(NEG(k), D_ptr)) { // k, -k \notin D
-            PUSH(*rho_prime, E_star(E_ptr, D_ptr, l));
-            continue;
-        } else {
-            assert(0);
-        }
-    }
-}
-
-/**
- * @brief Finishing todo's by copying the resulting chain.
- *        adds them to the proof and releases the rat clause.
- */
-void do_remaining_todos(struct proof proof) {
-    struct clause *to_insert_begin = NULL;
-    struct clause *to_insert_last = NULL;
-    struct clause *current = proof.begin;
-    struct todo_stack todos;
-    struct todo todo;
-
-    while (current != proof.next_rat_ptr) {
-        todos = current->todos;
-        while (!EMPTY(todos)) {
-            todo = POP(todos);
-            if (todo.result->index == 21845) {
-                fprintf(stderr, "21845\n");
-            }
-            todo.result->pivot = literal_undefined;
-            if (!to_insert_begin) {
-                to_insert_begin = to_insert_last = todo.result;
-            } else {
-                to_insert_last->next = todo.result;
-                todo.result->prev = to_insert_last;
-                to_insert_last = todo.result;
-            }
-        }
-        CLEAR(current->todos);
-        current = current->next;
-    }
-
-    assert(current == proof.next_rat_ptr);
-    todos = current->todos;
-    while (!EMPTY(todos)) {
-        todo = POP(todos);
-        if (todo.result->index == 21845) {
-            fprintf(stderr, "21845\n");
-        }
-        todo.result->chain = get_neg_chain(proof.next_rat_ptr, todo.other);
-        todo.result->pivot = literal_undefined;
-        if (!to_insert_begin) {
-            to_insert_begin = to_insert_last = todo.result;
-        } else {
-            to_insert_last->next = todo.result;
-            todo.result->prev = to_insert_last;
-            to_insert_last = todo.result;
-        }
-    }
-
-    if (to_insert_begin) {
-
-        to_insert_begin->prev = proof.next_rat_ptr->prev;
-        proof.next_rat_ptr->prev->next = to_insert_begin;
-
-        to_insert_last->next = proof.next_rat_ptr->next;
-        proof.next_rat_ptr->next->prev = to_insert_last;
-    } else {
-        proof.next_rat_ptr->prev->next = proof.next_rat_ptr->next;
-        proof.next_rat_ptr->next->prev = proof.next_rat_ptr->prev;
-    }
-    clause_release(proof.next_rat_ptr);
-}
-
-void transform_chain_and_do_todos(struct clause *clause_ptr, literal_t l) {
-    if (clause_ptr->index == 21845) {
-        fprintf(stderr, "21845\n");
-    }
-    while (!EMPTY(clause_ptr->todos)) {
-        struct todo todo = POP(clause_ptr->todos);
-        load_clause(clause_ptr);
-        CLEAR(todo.result->chain);
-        literal_t pivot = todo.result->pivot;
-        D(&(todo.result->chain), todo.other, literal_in_clause(pivot, clause_ptr) ? NEG(pivot) : pivot, clause_ptr->chain.begin, clause_ptr->chain.end);
-        clear_literal_array();
-        todo.result->pivot = literal_undefined;
-
-        clause_ptr->next->prev = todo.result;
-        todo.result->next = clause_ptr->next;
-
-        todo.result->prev = clause_ptr;
-        clause_ptr->next = todo.result;
-    }
-    RELEASE(clause_ptr->todos);
-
-    struct clause_ptr_stack chain = {0, 0, 0};
-    switch (clause_ptr->purity) {
-    case impure:
-        clause_ptr->prev->next = clause_ptr->next;
-        clause_ptr->next->prev = clause_ptr->prev;
-        clause_release(clause_ptr);
-        break;
-    case semipure:
-        load_clause(clause_ptr);
-        for (all_clause_ptrs_in_stack(chain_clause_ptr, clause_ptr->chain)) {
-            literal_t k = clause_get_reverse_resolvent(chain_clause_ptr);
-
-            if (VAR(k) != VAR(l)) {
-                PUSH(chain, chain_clause_ptr);
-            } else {
-                D(&chain, chain_clause_ptr, NEG(k), chain_clause_ptr_ptr + 1, chain_clause_ptr_end);
+            bool is_last = current_ptr == clause_after_rat;
+            switch (current.purity)
+            {
+            case impure:
+            {
+                // unlink and free current
+                clause_t *tmp = current.next;
+                current.prev->next = current.next;
+                current.next->prev = current.prev;
+                clause_release(current_ptr);
+                current_ptr = tmp;
+                current = *current_ptr;
                 break;
             }
+            case semipure:
+            {
+                chain_distribution(current.chain.clauses[current.hint], NEG(current.chain.pivots[current.hint]), current_ptr, current.hint);
+                current_ptr->purity = pure;
+                break;
+            }
+            case pure:
+                break;
+            case todo:
+            {
+                chain_distribution(current.hint_clause, current.hint, current_ptr, 0);
+                current_ptr->purity = pure;
+                break;
+            }
+            default:
+                ASSERT_ERROR(0, "transform_chain: unknown purity");
+            }
+            current_ptr = current_ptr->prev;
+            current = *current_ptr;
+            if (is_last)
+                break;
         }
-        clear_literal_array();
-        RELEASE(clause_ptr->chain);
-        clause_ptr->chain = chain;
-        clause_ptr->purity = pure;
-        break;
-    case pure:
-        break;
-    default:
-        assert(0);
+        finish_todos(current_ptr);
     }
+    proof_fprint(stdout, proof);
+    return 0;
 }
 
-void mark_purity(struct proof proof) {
-    literal_t rat_literal = proof.next_rat_ptr->pivot;
-    load_literal(proof.next_rat_ptr->index);
-    struct clause *current = proof.next_rat_ptr->next;
-    while (current) {
-        struct clause_ptr_stack chain = current->chain;
-        for (all_clause_ptrs_in_stack(chain_clause_ptr, chain)) {
-            if (literal_array[chain_clause_ptr->index]) {
-                if (literal_in_clause(rat_literal, current)) {
-                    current->purity = impure;
-                    load_literal(current->index);
-                    break;
-                } else {
-                    current->purity = semipure;
+void finish_todos(clause_t *current_ptr)
+{
+    for (; current_ptr->purity == todo; current_ptr = current_ptr->prev)
+    {
+        clause_reconstruct_pivots(current_ptr);
+        current_ptr->purity = pure;
+    }
+    ASSERT_ERROR(current_ptr == proof.current_rat_clause, "finish_todos: current_ptr != proof.current_rat_clause");
+    clause_t *next = proof.current_rat_clause->next;
+
+    for (all_pointers_on_stack(clause_t, clause_ptr, todo_clauses))
+    {
+        clause_t *todo_start = clause_ptr->next;
+        current_ptr = todo_start;
+        while (current_ptr->purity == todo)
+        {
+            current_ptr->purity = pure;
+            current_ptr = current_ptr->next;
+        }
+        next->prev = current_ptr->prev;
+        current_ptr->prev->next = next;
+        proof.current_rat_clause->next = todo_start;
+        todo_start->prev = proof.current_rat_clause;
+        next = todo_start;
+
+        clause_ptr->next = current_ptr;
+        current_ptr->prev = clause_ptr;
+    }
+    proof.current_rat_clause->prev->next = proof.current_rat_clause->next;
+    proof.current_rat_clause->next->prev = proof.current_rat_clause->prev;
+    clause_release(proof.current_rat_clause);
+    CLEAR(todo_clauses);
+}
+
+void mark_purity(struct proof proof)
+{
+    const literal_t rat_pivot = proof.current_rat_pivot;
+    const literal_t neg_rat_pivot = NEG(rat_pivot);
+    proof.current_rat_clause->purity = impure;
+    clause_t current = *proof.current_rat_clause,
+             *current_ptr = proof.current_rat_clause;
+    index_t current_index = current.index;
+    while (current.next != NULL)
+    {
+        current_ptr = current.next;
+        current = *current_ptr;
+        current_ptr->purity = pure;
+        current_ptr->index = ++current_index;
+        if (literal_in_clause(neg_rat_pivot, current))
+        {
+            continue;
+        }
+        else if (literal_in_clause(rat_pivot, current))
+        {
+            for (unsigned i = 0; i < current.chain.size; i++)
+            {
+                if (current.chain.clauses[i]->purity == impure)
+                {
+                    current_ptr->purity = impure;
                     break;
                 }
             }
         }
-        current = current->next;
+        else
+        {
+            for (unsigned i = 0, end = current.chain.size - 1; i < end; i++)
+            {
+                literal_t chain_pivot = current.chain.pivots[i];
+                if (chain_pivot == neg_rat_pivot)
+                {
+                    if (current.chain.clauses[i]->purity == impure)
+                        current_ptr->purity = semipure;
+                    current_ptr->hint = i;
+                    break;
+                }
+                else if (chain_pivot == rat_pivot)
+                {
+                    for (int j = i; j < current.chain.size; j++)
+                    {
+                        if (current.chain.clauses[j]->purity == impure)
+                        {
+                            current_ptr->purity = semipure;
+                            current_ptr->hint = i;
+                            break;
+                        }
+                    }
+                    break;
+                }
+            }
+        }
     }
-
-    clear_literal_array();
 }
 
-void handle_signal(int signal) {
-    quit = 1;
+struct clause_stack get_neg_chain(clause_t rat_clause, clause_t *clause_ptr)
+{
+    struct clause_stack chain = {0, 0, 0};
+    PUSH(chain, clause_ptr);
+    bool pre_chain_copied = false;
+    bool found = false;
+    for (all_chain_clause_ptrs_in_clause_chain(chain_clause_ptr, rat_clause))
+    {
+        if (!pre_chain_copied)
+        {
+            if (IS_NEG_CHAIN_HINT(chain_clause_ptr))
+                pre_chain_copied = true;
+            else
+            {
+                PUSH(chain, chain_clause_ptr);
+                continue;
+            }
+        }
+
+        if (IS_NEG_CHAIN_HINT(chain_clause_ptr) && GET_CHAIN_HINT_PTR(chain_clause_ptr) == clause_ptr)
+            found = true;
+        else if (found && IS_NEG_CHAIN_HINT(chain_clause_ptr))
+            return chain; // reached end of chain with negative hint
+        else if (found)
+            PUSH(chain, chain_clause_ptr);
+    }
+    if (!found)
+    {
+        fprintf(stderr, "get_neg_chain: clause not found in chain\n");
+        clause_fprint(stderr, *clause_ptr);
+        clause_fprint(stderr, rat_clause);
+    }
+    assert(found && SIZE(chain) > 0);
+
+    return chain; // reached end of chain without negative hint
 }
 
-void cleanup(void) {
-    proof_release(proof);
-    free(literal_array);
-    RELEASE(set_literals);
+clause_t *E_star(clause_t *chain_clause_ptr, clause_t *distributing_clause_ptr, literal_t distributing_literal)
+{
+    clause_t chain_clause = *chain_clause_ptr;
+    if (literal_in_clause(NEG(distributing_literal), chain_clause))
+    {
+        clause_t distributing_clause = *distributing_clause_ptr;
+        clause_t higher_index_clause, lower_index_clause,
+            *higher_index_clause_ptr, *lower_index_clause_ptr;
+        if (distributing_clause.index > chain_clause.index)
+        {
+            lower_index_clause = chain_clause;
+            lower_index_clause_ptr = chain_clause_ptr;
+            higher_index_clause = distributing_clause;
+            higher_index_clause_ptr = distributing_clause_ptr;
+        }
+        else
+        {
+            lower_index_clause = distributing_clause;
+            lower_index_clause_ptr = distributing_clause_ptr;
+            higher_index_clause = chain_clause;
+            higher_index_clause_ptr = chain_clause_ptr;
+        }
+
+        clause_t *current_ptr = higher_index_clause.next,
+                 current = *current_ptr;
+
+        if (current.purity != todo && higher_index_clause.index < proof.current_rat_clause_index)
+        {
+            PUSH(todo_clauses, higher_index_clause_ptr);
+        }
+        // looking for the same todo
+        while (current.purity == todo)
+        {
+            if (current.index == lower_index_clause.index)
+                return current_ptr;
+            current_ptr = current.next;
+            current = *current_ptr;
+        }
+
+        clause_t *result;
+        // three of todo's
+        // 1. todo clauses where the higher of the two indices is higher than the current rat clause index
+        // fprintf(stderr, "creating todo [%llu] [%llu]\n", higher_index_clause.index, lower_index_clause.index);
+        // fprintf(stderr, "current rat clause index: %llu\n", proof.current_rat_clause_index);
+        if (higher_index_clause.index > proof.current_rat_clause_index)
+        {
+            clause_t **chain = malloc(sizeof(clause_t *) * (higher_index_clause.chain.size));
+            memcpy(chain, higher_index_clause.chain.clauses, sizeof(clause_t *) * higher_index_clause.chain.size);
+            literal_t *pivots = malloc(sizeof(literal_t) * (higher_index_clause.chain.size - 1));
+            memcpy(pivots, higher_index_clause.chain.pivots, sizeof(literal_t) * (higher_index_clause.chain.size - 1));
+            result = resolve(distributing_clause, chain_clause, distributing_literal, chain, pivots, higher_index_clause.chain.size);
+            result->hint = lower_index_clause_ptr == distributing_clause_ptr ? distributing_literal : NEG(distributing_literal);
+            result->hint_clause = lower_index_clause_ptr;
+        }
+        // 2. todo clauses where the higher index is the rat index
+        else if (higher_index_clause.index == proof.current_rat_clause_index)
+        {
+            struct clause_stack chain = get_neg_chain(*proof.current_rat_clause, lower_index_clause_ptr);
+            result = resolve(distributing_clause, chain_clause, distributing_literal, chain.begin, NULL, SIZE(chain));
+        }
+        // 3. todo clauses where the higher index is lower than the rat index
+        else
+        {
+            clause_t **chain = malloc(sizeof(clause_t *) * 2);
+            chain[0] = distributing_clause_ptr;
+            chain[1] = chain_clause_ptr;
+            literal_t *pivots = malloc(sizeof(literal_t));
+            pivots[0] = distributing_literal;
+            result = resolve(distributing_clause, chain_clause, distributing_literal, chain, pivots, 2);
+        }
+        higher_index_clause.next->prev = result;
+        result->next = higher_index_clause.next;
+        result->prev = higher_index_clause_ptr;
+        higher_index_clause_ptr->next = result;
+
+        return result;
+    }
+    else
+    {
+        return chain_clause_ptr;
+    }
+}
+
+void chain_distribution(clause_t *distributing_clause_ptr, literal_t distributing_literal, clause_t *chain_clause_ptr, unsigned index)
+{
+    clause_t distributing_clause = *distributing_clause_ptr;
+    bit_vector_set_clause_literals(distributing_clause);
+
+    struct subsumption_merge_chain chain = chain_clause_ptr->chain;
+    unsigned write_index = index;
+
+    // special case if index points to distributing clause (Writes over it later, since write pointer still points to it)
+    if (chain.clauses[index] == distributing_clause_ptr)
+        index++;
+
+    for (; index < chain.size - 1; index++, write_index++)
+    {
+        literal_t current_pivot = chain.pivots[index];
+        if (current_pivot == NEG(distributing_literal) || bit_vector[current_pivot])
+        {
+            write_index--;
+        }
+        else if (current_pivot != NEG(distributing_literal) && bit_vector[NEG(current_pivot)])
+        {
+            break;
+        }
+        else if (!bit_vector[NEG(current_pivot)] && !bit_vector[current_pivot])
+        {
+            chain.clauses[write_index] = E_star(chain.clauses[index], distributing_clause_ptr, distributing_literal);
+            chain.pivots[write_index] = chain.pivots[index];
+        }
+    }
+    chain.clauses[write_index] = E_star(chain.clauses[index], distributing_clause_ptr, distributing_literal);
+    chain_clause_ptr->chain.size = write_index + 1;
+    bit_vector_clear_clause_literals(distributing_clause);
 }
