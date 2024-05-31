@@ -10,14 +10,14 @@ OBJ := $(SRC:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 DRUP := $(wildcard $(TEST_DIR)/*.drup)
 CNF := $(wildcard $(TEST_DIR)/*.cnf)
 
-CC = gcc
-CFLAGS = -D_POSIX_C_SOURCE
+CC = clang
+CFLAGS = -D_POSIX_C_SOURCE -std=c11
 
 .PHONY: all clean
 
 all: $(EXE)
 
-debug : CFLAGS += -DDEBUG -g -pedantic -Wall
+debug : CFLAGS += -DDEBUG -g -pedantic -Wall 
 debug : $(EXE)
 
 $(EXE): $(OBJ) | $(BIN_DIR)
@@ -41,7 +41,7 @@ $(BIN_DIR)/drat-trim: $(TMP_DIR)/drat-trim.c | $(BIN_DIR) $(TMP_DIR)
 
 $(TMP_DIR)/lrat-check.c: $(TMP_DIR)
 	if [ ! -f $@ ]; then \
-		wget -O $@ https://www.cs.utexas.edu/~marijn/drat-trim/lrat-check.c; \
+		wget -O $@ https://raw.githubusercontent.com/marijnheule/drat-trim/master/lrat-check.c; \
 	fi
 
 $(BIN_DIR)/lrat-check: $(TMP_DIR)/lrat-check.c | $(BIN_DIR)
@@ -75,29 +75,6 @@ lrups: $(EXE)
 		fi \
 	done
 
-drups: $(EXE)
-	@echo "Converting LRAT's ..."
-	@for file in $(CNF) ; do \
-		base=$$(echo $$file | sed 's/\.cnf$$//'); \
-		echo "Converting $$base.lrat ..."; \
-		if [ -f $$base.lrat ] && [ -f $$file ]; then \
-			if make $$base.lrup > /dev/null; then \
-				echo "Converting $$base.lrup to $$base.drup ..."; \
-				make $$base.drup > /dev/null; \
-			fi \
-		fi \
-	done
-
-verify: $(BIN_DIR)/drat-trim
-	@echo "Verifying DRUP files ..."
-	@for file in $(DRUP) ; do \
-		if $(BIN_DIR)/drat-trim `echo $$file | sed 's/\.drup$$//'`.cnf $$file > /dev/null 2>&1; then \
-			echo "$$file SUCCESS" ; \
-		else \
-			echo "$$file FAILED" ; \
-		fi ; \
-	done
-
 check: $(BIN_DIR)/lrat-check
 	make lrups > /dev/null
 	@echo "Checking for LRUP files ..."
@@ -110,7 +87,7 @@ check: $(BIN_DIR)/lrat-check
 		fi ; \
 	done
 
-# remove lrup and drup files
+# remove lrup
 clean:
-	rm -rv $(EXE) $(OBJ_DIR) $(TEST_DIR)/*.lrup $(TEST_DIR)/*.drup || true
+	rm -rv $(EXE) $(OBJ_DIR) $(TEST_DIR)/*.lrup || true
 
