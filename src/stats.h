@@ -1,7 +1,7 @@
 #ifndef __stats_h__
 #define __stats_h__
-#define STATS
-#ifdef STATS
+
+#ifdef BENCH
 #include <time.h>
 #include <stdio.h>
 #include "clause.h"
@@ -40,14 +40,17 @@ extern struct stats stats;
 #define time_start(stat) clock_t stat##_start_time = clock()
 #define time_end(stat) stats.stat##_time += (double)(clock() - stat##_start_time) / CLOCKS_PER_SEC
 
-#define print_stats()                                                                                                                 \
-  do                                                                                                                                  \
-  {                                                                                                                                   \
-    fprintf(stderr, "Initial [dimacs: %llu, lrat: %llu]\n", stats.dimacs_creations, stats.lrat_creations);                            \
-    fprintf(stderr, "Todos [new: %llu, reused: %llu] Deletions [%llu]\n", stats.new_todos, stats.reused_todos, stats.deletions);      \
-    fprintf(stderr, "Time [total: %f, parse: %f, marking: %f, elimination: %f, finish: %f]\n",                                        \
-            stats.total_time, stats.parse_dimacs_lrat_time, stats.mark_purity_time, stats.elimination_time, stats.finish_todos_time); \
-  } while (0)
+// prints the stats to be outputted as csv
+// dimacs, lrat, additions, reused, deletions, total, marking, distributing, finishing
+#define print_stats() fprintf(stderr, "%llu, %llu, %llu, %llu, %llu, %f, %f, %f, %f\n", stats.dimacs_creations, stats.lrat_creations, stats.new_todos, stats.reused_todos, stats.deletions, stats.total_time, stats.mark_purity_time, stats.chain_distribution_time, stats.finish_todos_time)
+
+// do                                                                                                                                  \
+  // {                                                                                                                                   \
+    // fprintf(stderr, "Initial [dimacs: %llu, lrat: %llu]\n", stats.dimacs_creations, stats.lrat_creations);                            \
+    // fprintf(stderr, "Todos [new: %llu, reused: %llu] Deletions [%llu]\n", stats.new_todos, stats.reused_todos, stats.deletions);      \
+    // fprintf(stderr, "Time [total: %f, parse: %f, marking: %f, elimination: %f, finish: %f]\n",                                        \
+            // stats.total_time, stats.parse_dimacs_lrat_time, stats.mark_purity_time, stats.elimination_time, stats.finish_todos_time); \
+  // } while (0)
 
 #else
 #define init_stats()

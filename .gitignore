@@ -13,3 +13,4 @@ tmp
 tests/*.lrup
 tests/*.drup
 tests/*.drat
+out.txt
