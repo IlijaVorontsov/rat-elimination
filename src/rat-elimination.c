@@ -34,13 +34,14 @@ int main(int argc, char *argv[])
         // traverses proof from end to the clause after the current rat clause (before insertions of todo's)
         // since todo's after the current rat clause are not yet finished (finish todo's is called after this loop)
         for (clause_t *clause_ptr = proof.end, clause = *clause_ptr, *last_ptr = current_rat_clause_ptr->next;
-             ; clause_ptr = clause.prev, clause = *clause_ptr)
+             ; clause_ptr = clause_ptr->prev, clause = *clause_ptr)
         {
+            bool last = clause_ptr == last_ptr;
             switch (clause.purity)
             {
             case impure:
             {
-                clause = *proof_unlink_free(clause_ptr);
+                clause_ptr = proof_unlink_free(clause_ptr);
                 break;
             }
             case semipure:
@@ -60,13 +61,14 @@ int main(int argc, char *argv[])
             default:
                 ASSERT_ERROR(0, "transform_chain: unknown purity %d", clause.purity);
             }
-            if (clause_ptr == last_ptr)
+            if (last)
                 break;
         }
         time_end(elimination);
         timeit(finish_todos, current_rat_clause_ptr);
         proof_unlink_free(current_rat_clause_ptr);
     }
+    proof_fprint(output, proof);
     proof_fprint_final(output, proof, args.print_pivots && EMPTY(proof.rat_clauses));
     time_end(total);
     print_stats();

@@ -71,12 +71,12 @@ void proof_fprint_final(FILE *stream, struct proof proof, bool print_pivots)
 
     struct clause *current_ptr = proof.begin;
 
+    index_t index = 0;
     // skipping dimacs clauses
     for (clause_t current = *current_ptr; is_dimacs_clause(current); current_ptr = current.next, current = *current_ptr)
-        ;
+        current_ptr->index = ++index;
 
-    index_t last_dimacs_index = current_ptr->prev->index,
-            index = last_dimacs_index + 1;
+    index_t last_dimacs_index = index;
 
     while (current_ptr) // traversing the proof once, to determine the occurences for future deletions
     {
@@ -99,7 +99,7 @@ void proof_fprint_final(FILE *stream, struct proof proof, bool print_pivots)
 
             chain_ptr->hint_clause = (clause_t *)(((index_t)chain_ptr->hint_clause) + 1);
         }
-        current_ptr->index = index++;
+        current_ptr->index = ++index;
         current_ptr->hint_clause = NULL;
         current_ptr = current.next;
     }

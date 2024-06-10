@@ -55,7 +55,7 @@ $(TEST_DIR)/%.lrat: $(BIN_DIR)/drat-trim $(TEST_DIR)/%.cnf $(TEST_DIR)/%.drat
 	sort -n -o $@ $@
 	
 $(TEST_DIR)/%.lrup: $(EXE) $(TEST_DIR)/%.cnf $(TEST_DIR)/%.lrat
-	@ if $(EXE) -v $(word 2,$^) $(word 3,$^) > $@; then \
+	@ if $(EXE) $(word 2,$^) $(word 3,$^) > $@; then \
 		echo "SUCCESS" ; \
 	else \
 		echo "FAILED" ; \
