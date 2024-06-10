@@ -1,17 +1,13 @@
 #ifndef __proof_h__
 #define __proof_h__
 
-#include <stdint.h>
-
 #include "clause.h"
+#include "stack.h"
 
 struct proof
 {
-    unsigned rat_count;
-    index_t current_rat_clause_index;
-    literal_t current_rat_pivot;
-    clause_t **rat_clauses;
-    clause_t *begin, *end, *current_rat_clause, *last_dimacs;
+    struct clause_stack rat_clauses;
+    clause_t *begin, *end, *last_dimacs;
 };
 
 struct proof proof_from_dimacs_lrat(const char *dimacs_path,
@@ -31,5 +27,13 @@ void proof_fprint(FILE *stream, struct proof proof);
  * @brief Prints the proof including the dimacs clauses to stdout.
  */
 void proof_fprint_all(FILE *stream, struct proof proof);
+
+void proof_fprint_final(FILE *stream, struct proof proof, bool print_pivots);
+
+/**
+ * @brief Unlinks (by linking prev and next) and frees clause_ptr.
+ * @return pointer to the next clause.
+ */
+clause_t *proof_unlink_free(clause_t *clause_ptr);
 
 #endif /* __proof_h__ */

@@ -10,8 +10,8 @@ OBJ := $(SRC:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 DRUP := $(wildcard $(TEST_DIR)/*.drup)
 CNF := $(wildcard $(TEST_DIR)/*.cnf)
 
-CC = clang
-CFLAGS = -D_POSIX_C_SOURCE -std=c11
+CC = gcc
+CFLAGS = -D_POSIX_C_SOURCE=200809L -std=c11 -lprofiler 
 
 .PHONY: all clean
 
@@ -51,9 +51,9 @@ $(TEST_DIR)/%.lrat: $(BIN_DIR)/drat-trim $(TEST_DIR)/%.cnf $(TEST_DIR)/%.drat
 	$^ -L $@
 	sed -i '/d/d' $@ 
 	sort -n -o $@ $@
-
+	
 $(TEST_DIR)/%.lrup: $(EXE) $(TEST_DIR)/%.cnf $(TEST_DIR)/%.lrat
-	@ if $^ > $@; then \
+	@ if $(EXE) -v $(word 2,$^) $(word 3,$^) > $@; then \
 		echo "SUCCESS" ; \
 	else \
 		echo "FAILED" ; \

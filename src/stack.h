@@ -68,17 +68,17 @@
 
 // Duplicate size of stack.
 
-#define ENLARGE(S)                                                       \
-    do                                                                   \
-    {                                                                    \
-        const size_t old_size = SIZE(S);                                 \
-        const size_t old_capacity = CAPACITY(S);                         \
-        const size_t new_capacity = old_capacity ? 2 * old_capacity : 1; \
-        const size_t new_bytes = new_capacity * sizeof *(S).begin;       \
-        (S).begin = realloc((S).begin, new_bytes);                       \
-        ASSERT_ERROR((S).begin, "out-of-memory reallocating stack");     \
-        (S).end = (S).begin + old_size;                                  \
-        (S).allocated = (S).begin + new_capacity;                        \
+#define ENLARGE(S)                                                          \
+    do                                                                      \
+    {                                                                       \
+        const size_t old_size = SIZE(S);                                    \
+        const size_t old_capacity = CAPACITY(S);                            \
+        const size_t new_capacity = old_capacity ? 2 * old_capacity : 1;    \
+        const size_t new_bytes = new_capacity * sizeof *(S).begin;          \
+        (S).begin = realloc((S).begin, new_bytes);                          \
+        ASSERT_ERROR((S).begin, "out-of-memory reallocating stack %s", #S); \
+        (S).end = (S).begin + old_size;                                     \
+        (S).allocated = (S).begin + new_capacity;                           \
     } while (0)
 
 #define PUSH(S, E)        \
@@ -170,6 +170,11 @@ struct clause_stack
 struct literal_stack
 {
     literal_t *begin, *end, *allocated;
+};
+
+struct index_stack
+{
+    index_t *begin, *end, *allocated;
 };
 
 #endif

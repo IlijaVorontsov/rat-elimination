@@ -4,14 +4,7 @@
 #include "literal.h"
 #include <stdbool.h>
 #include <stdio.h>
-
-enum purity
-{
-    pure = 'p',
-    semipure = 's',
-    impure = 'i',
-    todo = 't'
-};
+#include <stdint.h>
 
 #define index_t unsigned long long // 64-bit
 
@@ -24,7 +17,13 @@ struct subsumption_merge_chain
 
 typedef struct clause
 {
-    enum purity purity;
+    enum
+    {
+        pure,
+        semipure,
+        impure,
+        todo
+    } purity;
     bool is_rat;
     index_t index;
     struct clause *prev, *next;
@@ -35,20 +34,24 @@ typedef struct clause
     literal_t *literals;
 } clause_t;
 
+extern bool *bit_vector;
+
 #define is_dimacs_clause(C) (!(C).is_rat && (C).chain.size == 0)
 #define is_rat_clause(C) ((C).is_rat)
-#define is_rup_clause(C) (!(C).is_rat && (C).chain_size > 0)
+#define is_rup_clause(C) (!(C).is_rat && (C).chain.size > 0)
 
-clause_t *clause_create(unsigned literal_count, literal_t *literals, unsigned chain_size, clause_t **chain, bool is_rat);
 void clause_release(clause_t *clause_ptr);
+
 void clause_fprint(FILE *file, clause_t clause);
 void clause_fprint_with_pivots(FILE *file, clause_t clause);
-void clause_fprint_debug(FILE *file, clause_t clause);
 
 void clause_reconstruct_pivots(clause_t *clause_ptr);
 clause_t *resolve(clause_t left, clause_t right, literal_t resolvent, clause_t **chain, literal_t *pivots, unsigned chain_size);
 
 bool literal_in_clause(literal_t literal, clause_t clause);
+signed char var_in_clause(literal_t literal, clause_t clause);
+
+struct subsumption_merge_chain get_chain(struct subsumption_merge_chain rat_chain, clause_t *clause_ptr);
 
 #define TAG_CHAIN_HINT_NEG 1
 #define SET_NEG_CHAIN_HINT(P) ((struct clause *)((uintptr_t)(P) | TAG_CHAIN_HINT_NEG))
@@ -60,17 +63,15 @@ bool literal_in_clause(literal_t literal, clause_t clause);
     (L##_begin != L##_end) && (L = *L##_begin, true);                                    \
     ++L##_begin
 
-#define all_chain_clause_ptrs_in_clause_chain(CP, C)                                                 \
-    clause_t *CP, **CP##_begin = (C).chain.clauses, **CP##_end = (C).chain.clauses + (C).chain.size; \
-    (CP##_begin != CP##_end) && (CP = *CP##_begin, true);                                            \
+#define all_chain_clause_ptrs_in_clause_chain(CP, CH)                                 \
+    clause_t *CP, **CP##_begin = (CH).clauses, **CP##_end = (CH).clauses + (CH).size; \
+    (CP##_begin != CP##_end) && (CP = *CP##_begin, true);                             \
     ++CP##_begin
 
-extern bool *bit_vector;
-
-#define bit_vector_init(max_variable)                        \
-    do                                                       \
-    {                                                        \
-        bit_vector = calloc(max_variable + 1, sizeof(bool)); \
+#define bit_vector_init(max_variable)                               \
+    do                                                              \
+    {                                                               \
+        bit_vector = calloc((max_variable << 1) + 1, sizeof(bool)); \
     } while (0)
 
 #define bit_vector_set_clause_literals(C)                \
