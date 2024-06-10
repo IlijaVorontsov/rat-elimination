@@ -58,7 +58,7 @@ extern struct stats stats;
 #define time_start(stat)
 #define time_end(stat)
 #define timeit(fun, ...) fun(__VA_ARGS__)
-#define print_stats()
+#define print_stats() do{}while(0)
 #endif
 
 #endif /* __stats_h__ */
