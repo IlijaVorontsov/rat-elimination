@@ -10,7 +10,7 @@ Run `make check` to check the binary on the test instances and verify the output
 
 ## Usage
 
-Run `./bin/rat-elimination [-v|-p] CNF_FILE LRAT_FILE  [OUTPUT_FILE]` If OUTPUT_FILE is not specified the result is prented to `stdout`. 
+Run `./bin/rat-elimination [-v|-p] CNF_FILE LRAT_FILE  [OUTPUT_FILE]` If OUTPUT_FILE is not specified the result is written to `stdout`. 
 The flags -v for verbose output (number of remaining rat-clauses to stderr), -p adds pivots to the output.
 
 
