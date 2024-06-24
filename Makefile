@@ -11,16 +11,14 @@ DRUP := $(wildcard $(TEST_DIR)/*.drup)
 CNF := $(wildcard $(TEST_DIR)/*.cnf)
 
 CC = gcc
-CFLAGS = -D_POSIX_C_SOURCE=200809L -std=c11 -O3
+CFLAGS = -D_POSIX_C_SOURCE=200809L -std=c11 -Ofast
 
 .PHONY: all clean 
-
-all: $(EXE)
 
 debug : CFLAGS += -DDEBUG -g -pedantic -Wall 
 bench : CFLAGS += -DBENCH 
 
-debug bench : $(EXE)
+debug bench all : $(EXE)
 
 $(EXE): $(OBJ) | $(BIN_DIR)
 	$(CC) $(CFLAGS) $^ -o $@
@@ -88,6 +86,9 @@ check: $(BIN_DIR)/lrat-check
 			echo "$$base.lrup FAILED" ; \
 		fi ; \
 	done
+
+install:
+	cp $(EXE) /usr/local/bin
 
 # remove lrup
 clean:
