@@ -83,6 +83,7 @@ static inline clause_t *parse_dimacs_clause(FILE *dimacs_fp, index_t index, clau
     if (c == ' ')
     {
       ASSERT_ERROR(number != 0, "unexpected space in clause %llu", index);
+      max_variable = max_variable > number ? max_variable : number;
       PUSH(literals, LITERAL(negated, number - 1));
       number = 0;
       negated = false;
