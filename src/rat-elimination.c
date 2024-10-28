@@ -22,12 +22,12 @@ int main(int argc, char *argv[])
 
     // Parsing the proof
     struct proof proof = parse_dimacs_lrat(args.dimacs_filename, args.lrat_filename);
-    fprintf_verbose(stderr, "total rat clauses: %lu\n", SIZE(proof.rat_clauses));
+
+    print_header();
     while (!EMPTY(proof.rat_clauses) && !quit)
     {
         clause_t *current_rat_clause_ptr = POP(proof.rat_clauses);
         current_rat_index = current_rat_clause_ptr->index;
-        fprintf_verbose(stderr, "remaining rat clauses: %.5lu\r", SIZE(proof.rat_clauses));
 
         timeit(mark_purity, current_rat_clause_ptr);
         time_start(elimination);
@@ -67,8 +67,9 @@ int main(int argc, char *argv[])
         time_end(elimination);
         timeit(finish_todos, current_rat_clause_ptr);
         proof_unlink_free(current_rat_clause_ptr);
+        if(args.verbose)
+            print_stats();
     }
-    proof_fprint(output, proof);
     proof_fprint_final(output, proof, args.print_pivots && EMPTY(proof.rat_clauses));
     time_end(total);
     print_stats();
