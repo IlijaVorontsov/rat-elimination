@@ -22,13 +22,14 @@ int main(int argc, char *argv[])
 
     // Parsing the proof
     struct proof proof = parse_dimacs_lrat(args.dimacs_filename, args.lrat_filename);
-    if(args.verbose)
+    if (args.verbose)
         print_header();
-        
+
     while (!EMPTY(proof.rat_clauses) && !quit)
     {
         clause_t *current_rat_clause_ptr = POP(proof.rat_clauses);
         current_rat_index = current_rat_clause_ptr->index;
+        literal_t current_char_literal = current_rat_clause_ptr->hint;
 
         timeit(mark_purity, current_rat_clause_ptr);
         time_start(elimination);
@@ -68,7 +69,7 @@ int main(int argc, char *argv[])
         time_end(elimination);
         timeit(finish_todos, current_rat_clause_ptr);
         proof_unlink_free(current_rat_clause_ptr);
-        if(args.verbose)
+        if (args.verbose)
             print_stats();
     }
     proof_fprint_final(output, proof, args.print_pivots && EMPTY(proof.rat_clauses));
@@ -148,70 +149,26 @@ void mark_purity(clause_t *current_ptr)
         current_ptr->purity = pure;
         current_ptr->index = ++current_index;
 
-        signed char sign = var_in_clause(rat_pivot, current);
-
-        if (sign < 0) // NEG(rat_pivot) in clause
-        /*
-        NEG(rat_pivot) in clause -> pure
-        by contradiction:
-        assume not pure <-> impure or semipure
-            for both impure or semipure there must be an impure clause in the chain
-            impure clauses must have the rat pivot in it.
-            since the chain is a subsumption merge chain, the NEG(rat_pivot) is introduced
-            in the subsumption step, but given that a impure clause would have the rat_pivot
-            in it, it would be resolved away by the merge step. Therefore, the clause must be pure.
-        */
+        for (unsigned i = 0; i < current.chain.size; i++)
         {
-            continue;
-        }
-        else if (sign > 0) // rat_pivot in clause -> must come from some clause in the chain (check all)
-        {
-            for (unsigned i = 0; i < current.chain.size; i++)
+            if (current.chain.clauses[i]->purity == impure)
             {
-                if (current.chain.clauses[i]->purity == impure)
+                if (literal_in_clause(rat_pivot, current))
                 {
-                    current_ptr->purity = impure;
-                    break;
-                }
-            }
-            increment_stat(not_impure_with_rat_pivot);
-        }
-        else
-        {
-            // rat_pivot not in clause -> check pivots to see if some clause might have rat_literal in it,
-            // but the rat_literal is resolved away
-            for (unsigned i = 0, end = current.chain.size - 1; i < end; i++)
-            {
-                literal_t chain_pivot = current.chain.pivots[i];
-                if (chain_pivot == neg_rat_pivot)
-                // k_i = \lnot rat_pivot -> only C_i has to be checked,
-                // since rat_pivot \in C_i and there exist no later C_j j>i s.t. rat_pivot \in C_j
-                // proof there exist no later C_j j>i s.t. rat_pivot \in C_j:
-                // contradiction: assume there exist a later j>i s.t. rat_pivot \in C_j
-                // \lnot rat_pivot is introduced in the subsumption step
-                // since rat_pivot in C_j the only possible pivot would be rat_pivot,
-                // but then step i would not be a merge step. (Contradiction)
-                {
-                    if (current.chain.clauses[i]->purity == impure)
-                        current_ptr->purity = semipure;
-                    current_ptr->hint = i;
-                    break;
-                }
-                else if (chain_pivot == rat_pivot)
-                // k_i = rat_pivot -> \lnot rat_pivot \in C_i (thus it doesn't have to be checked)
-                // rat_pivot must be introduced in the subsumption step, and is required for some
-                // C_j j>(i+1) to be a merge step. -> check all j>i+1 for purity
-                {
-                    for (int j = i + 1; j < current.chain.size; j++)
+                    current_ptr->purity = semipure;
+                    for (unsigned j = 0; j < current.chain.size; j++)
                     {
-                        if (current.chain.clauses[j]->purity == impure)
+                        if (current.chain.pivots[j] == rat_pivot || current.chain.pivots[j] == NEG(neg_rat_pivot))
                         {
-                            current_ptr->purity = semipure;
-                            current_ptr->hint = i;
+                            current_ptr->hint = j;
                             break;
                         }
                     }
                     break;
+                }
+                else
+                {
+                    current_ptr->purity = impure;
                 }
             }
         }
