@@ -318,7 +318,6 @@ clause_t *E_star(clause_t *chain_clause_ptr, clause_t *distributing_clause_ptr, 
 void chain_distribution(clause_t *distributing_clause_ptr, literal_t distributing_literal, clause_t *chain_clause_ptr, unsigned index)
 {
     clause_t distributing_clause = *distributing_clause_ptr;
-    bit_vector_set_clause_literals(distributing_clause);
 
     struct subsumption_merge_chain chain = chain_clause_ptr->chain;
     unsigned write_index = index;
@@ -330,15 +329,15 @@ void chain_distribution(clause_t *distributing_clause_ptr, literal_t distributin
     for (; index < chain.size - 1; index++, write_index++)
     {
         literal_t current_pivot = chain.pivots[index];
-        if (current_pivot == NEG(distributing_literal) || bit_vector[current_pivot])
+        if (current_pivot == NEG(distributing_literal) || literal_in_clause(current_pivot, distributing_clause))
         {
             write_index--;
         }
-        else if (current_pivot != NEG(distributing_literal) && bit_vector[NEG(current_pivot)])
+        else if (current_pivot != NEG(distributing_literal) && literal_in_clause(NEG(current_pivot), distributing_clause))
         {
             break;
         }
-        else if (!bit_vector[NEG(current_pivot)] && !bit_vector[current_pivot])
+        else if (!literal_in_clause(NEG(current_pivot), distributing_clause) && !literal_in_clause(current_pivot, distributing_clause))
         {
             chain.clauses[write_index] = E_star(chain.clauses[index], distributing_clause_ptr, distributing_literal);
             chain.pivots[write_index] = chain.pivots[index];
@@ -346,7 +345,6 @@ void chain_distribution(clause_t *distributing_clause_ptr, literal_t distributin
     }
     chain.clauses[write_index] = E_star(chain.clauses[index], distributing_clause_ptr, distributing_literal);
     chain_clause_ptr->chain.size = write_index + 1;
-    bit_vector_clear_clause_literals(distributing_clause);
 }
 
 // atexit
