@@ -29,7 +29,6 @@ int main(int argc, char *argv[])
     {
         clause_t *current_rat_clause_ptr = POP(proof.rat_clauses);
         current_rat_index = current_rat_clause_ptr->index;
-        literal_t current_char_literal = current_rat_clause_ptr->hint;
 
         timeit(mark_purity, current_rat_clause_ptr);
         time_start(elimination);
@@ -155,20 +154,21 @@ void mark_purity(clause_t *current_ptr)
             {
                 if (literal_in_clause(rat_pivot, current))
                 {
+                    current_ptr->purity = impure;
+                }
+                else
+                {
                     current_ptr->purity = semipure;
-                    for (unsigned j = 0; j < current.chain.size; j++)
+                    for (unsigned j = 0, end = current.chain.size - 1; j < end; j++)
                     {
-                        if (current.chain.pivots[j] == rat_pivot || current.chain.pivots[j] == NEG(neg_rat_pivot))
+                        literal_t current_pivot = current.chain.pivots[j];
+                        if (current_pivot == rat_pivot || current_pivot == neg_rat_pivot)
                         {
                             current_ptr->hint = j;
                             break;
                         }
                     }
                     break;
-                }
-                else
-                {
-                    current_ptr->purity = impure;
                 }
             }
         }
