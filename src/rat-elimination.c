@@ -22,8 +22,9 @@ int main(int argc, char *argv[])
 
     // Parsing the proof
     struct proof proof = parse_dimacs_lrat(args.dimacs_filename, args.lrat_filename);
-
-    print_header();
+    if(args.verbose)
+        print_header();
+        
     while (!EMPTY(proof.rat_clauses) && !quit)
     {
         clause_t *current_rat_clause_ptr = POP(proof.rat_clauses);
@@ -72,7 +73,6 @@ int main(int argc, char *argv[])
     }
     proof_fprint_final(output, proof, args.print_pivots && EMPTY(proof.rat_clauses));
     time_end(total);
-    print_stats();
     exit(0);
 }
 
