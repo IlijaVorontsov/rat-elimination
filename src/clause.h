@@ -22,9 +22,9 @@ typedef struct clause
         pure,
         semipure,
         impure,
-        todo
+        todo,
+        rat
     } purity;
-    bool is_rat;
     index_t index;
     struct clause *prev, *next;
     literal_t hint;
@@ -36,9 +36,9 @@ typedef struct clause
 
 extern bool *bit_vector;
 
-#define is_dimacs_clause(C) (!(C).is_rat && (C).chain.size == 0)
-#define is_rat_clause(C) ((C).is_rat)
-#define is_rup_clause(C) (!(C).is_rat && (C).chain.size > 0)
+#define is_dimacs_clause(C) ((C).purity != rat && (C).chain.size == 0)
+#define is_rat_clause(C) ((C).purity == rat)
+#define is_rup_clause(C) ((C).purity != rat && (C).chain.size > 0)
 
 void clause_release(clause_t *clause_ptr);
 

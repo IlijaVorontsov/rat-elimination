@@ -42,8 +42,7 @@ static inline clause_t *clause_create(index_t index, clause_t *prev, struct lite
 
   clause_t *clause = malloc(sizeof(clause_t));
   *clause = (clause_t){
-      .purity = pure,
-      .is_rat = is_rat,
+      .purity = is_rat ? rat : pure,
       .index = index,
       .prev = prev,
       .next = NULL,

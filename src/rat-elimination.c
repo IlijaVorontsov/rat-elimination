@@ -68,11 +68,11 @@ int main(int argc, char *argv[])
         time_end(elimination);
         timeit(finish_todos, current_rat_clause_ptr);
         proof_unlink_free(current_rat_clause_ptr);
-        if (args.verbose)
-            print_stats();
     }
     proof_fprint_final(output, proof, args.print_pivots && EMPTY(proof.rat_clauses));
     time_end(total);
+    print_stats();
+    fflush(stdout);
     exit(0);
 }
 
@@ -152,24 +152,20 @@ void mark_purity(clause_t *current_ptr)
         {
             if (current.chain.clauses[i]->purity == impure)
             {
-                if (literal_in_clause(rat_pivot, current))
+
+                for (unsigned j = 0, end = current.chain.size - 1; j < end; j++)
                 {
-                    current_ptr->purity = impure;
-                }
-                else
-                {
-                    current_ptr->purity = semipure;
-                    for (unsigned j = 0, end = current.chain.size - 1; j < end; j++)
+                    literal_t current_pivot = current.chain.pivots[j];
+                    if (current_pivot == rat_pivot || current_pivot == neg_rat_pivot)
                     {
-                        literal_t current_pivot = current.chain.pivots[j];
-                        if (current_pivot == rat_pivot || current_pivot == neg_rat_pivot)
-                        {
-                            current_ptr->hint = j;
-                            break;
-                        }
+                        current_ptr->purity = semipure;
+                        current_ptr->hint = j;
+                        break;
                     }
-                    break;
                 }
+                if (current_ptr->purity != semipure)
+                    current_ptr->purity = impure;
+                break;
             }
         }
     }

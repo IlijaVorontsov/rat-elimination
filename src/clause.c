@@ -144,7 +144,6 @@ clause_t *resolve(clause_t left, clause_t right, literal_t resolvent, clause_t *
     ASSERT_ERROR(clause_ptr, "resolve: malloc failed");
     *clause_ptr = (struct clause){
         .purity = todo,
-        .is_rat = false,
         .index = left.index < right.index ? left.index : right.index,
         .next = NULL,
         .prev = NULL,
@@ -301,7 +300,7 @@ static inline void fprint_clause_literals(FILE *file, clause_t clause)
 void clause_fprint(FILE *file, struct clause clause)
 {
     fprintf(file, "%llu ", clause.index);
-    if (clause.is_rat)
+    if (clause.purity == rat)
     {
         fprint_rat_literals(file, clause);
         fprint_rat_chain(file, clause.chain);
