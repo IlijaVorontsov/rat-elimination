@@ -239,7 +239,8 @@ static inline clause_t *parse_lrat_clause(FILE *lrat_fp, index_t index, clause_t
  * @param lrat_path The path to the LRAT file.
  * @return `struct proof`
  */
-struct proof parse_dimacs_lrat(const char *dimacs_path, const char *lrat_path)
+struct proof
+parse_dimacs_lrat(const char *dimacs_path, const char *lrat_path)
 {
   time_start(parse_dimacs_lrat);
   struct proof proof = {(struct clause_stack){0, 0, 0}, NULL, NULL, NULL};

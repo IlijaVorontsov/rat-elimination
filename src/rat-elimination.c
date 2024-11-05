@@ -68,11 +68,11 @@ int main(int argc, char *argv[])
         time_end(elimination);
         timeit(finish_todos, current_rat_clause_ptr);
         proof_unlink_free(current_rat_clause_ptr);
-        if (args.verbose)
-            print_stats();
     }
     proof_fprint_final(output, proof, args.print_pivots && EMPTY(proof.rat_clauses));
     time_end(total);
+    print_stats();
+    fflush(stdout);
     exit(0);
 }
 

@@ -44,7 +44,6 @@ extern struct stats stats;
 // dimacs, lrat, additions, reused, deletions, total, marking, distributing, finishing
 #define print_stats() fprintf(stdout, "%llu, %llu, %llu, %llu, %llu, %f, %f, %f, %f\n", stats.dimacs_creations, stats.lrat_creations, stats.new_todos, stats.reused_todos, stats.deletions, stats.total_time, stats.mark_purity_time, stats.chain_distribution_time, stats.finish_todos_time)
 
-
 #define print_header() fprintf(stdout, "dimacs, lrat, additions, reused, deletions, total, marking, distributing, finishing\n")
 // do                                                                                                                                  \
   // {                                                                                                                                   \
