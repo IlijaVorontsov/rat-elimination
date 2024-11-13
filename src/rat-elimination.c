@@ -135,40 +135,28 @@ void finish_todos(clause_t *rat_clause_ptr)
  */
 void mark_purity(clause_t *current_ptr)
 {
-    clause_t current = *current_ptr;
-    const literal_t rat_pivot = current.hint;
+    const literal_t rat_pivot = current_ptr->hint;
     const literal_t neg_rat_pivot = NEG(rat_pivot);
     current_ptr->purity = impure;
-    index_t current_index = current.index;
+    index_t current_index = current_ptr->index;
 
-    while (current.next != NULL) // end not reached
+    while (current_ptr->next != NULL) // end not reached
     {
-        current_ptr = current.next;
-        current = *current_ptr;
+        current_ptr = current_ptr->next;
         current_ptr->purity = pure;
         current_ptr->index = ++current_index;
 
-        signed char sign = var_in_clause(rat_pivot, current);
+        signed char sign = var_in_clause(rat_pivot, current_ptr);
 
         if (sign < 0) // NEG(rat_pivot) in clause
-        /*
-        NEG(rat_pivot) in clause -> pure
-        by contradiction:
-        assume not pure <-> impure or semipure
-            for both impure or semipure there must be an impure clause in the chain
-            impure clauses must have the rat pivot in it.
-            since the chain is a subsumption merge chain, the NEG(rat_pivot) is introduced
-            in the subsumption step, but given that a impure clause would have the rat_pivot
-            in it, it would be resolved away by the merge step. Therefore, the clause must be pure.
-        */
         {
             continue;
         }
-        else if (sign > 0) // rat_pivot in clause -> must come from some clause in the chain (check all)
+        else if (sign > 0) // rat_pivot in clause
         {
-            for (unsigned i = 0; i < current.chain.size; i++)
+            for (unsigned i = 0; i < current_ptr->chain.size; i++)
             {
-                if (current.chain.clauses[i]->purity == impure)
+                if (current_ptr->chain.clauses[i]->purity == impure)
                 {
                     current_ptr->purity = impure;
                     break;
@@ -180,9 +168,9 @@ void mark_purity(clause_t *current_ptr)
         {
             // rat_pivot not in clause -> check pivots to see if some clause might have rat_literal in it,
             // but the rat_literal is resolved away
-            for (unsigned i = 0, end = current.chain.size - 1; i < end; i++)
+            for (unsigned i = 0, end = current_ptr->chain.size - 1; i < end; i++)
             {
-                literal_t chain_pivot = current.chain.pivots[i];
+                literal_t chain_pivot = current_ptr->chain.pivots[i];
                 if (chain_pivot == neg_rat_pivot)
                 // k_i = \lnot rat_pivot -> only C_i has to be checked,
                 // since rat_pivot \in C_i and there exist no later C_j j>i s.t. rat_pivot \in C_j
@@ -192,7 +180,7 @@ void mark_purity(clause_t *current_ptr)
                 // since rat_pivot in C_j the only possible pivot would be rat_pivot,
                 // but then step i would not be a merge step. (Contradiction)
                 {
-                    if (current.chain.clauses[i]->purity == impure)
+                    if (current_ptr->chain.clauses[i]->purity == impure)
                         current_ptr->purity = semipure;
                     current_ptr->hint = i;
                     break;
@@ -202,9 +190,9 @@ void mark_purity(clause_t *current_ptr)
                 // rat_pivot must be introduced in the subsumption step, and is required for some
                 // C_j j>(i+1) to be a merge step. -> check all j>i+1 for purity
                 {
-                    for (int j = i + 1; j < current.chain.size; j++)
+                    for (int j = i + 1; j < current_ptr->chain.size; j++)
                     {
-                        if (current.chain.clauses[j]->purity == impure)
+                        if (current_ptr->chain.clauses[j]->purity == impure)
                         {
                             current_ptr->purity = semipure;
                             current_ptr->hint = i;
@@ -220,78 +208,66 @@ void mark_purity(clause_t *current_ptr)
 
 clause_t *E_star(clause_t *chain_clause_ptr, clause_t *distributing_clause_ptr, literal_t distributing_literal)
 {
-    clause_t chain_clause = *chain_clause_ptr;
-    if (literal_in_clause(NEG(distributing_literal), chain_clause))
+    if (literal_in_clause(NEG(distributing_literal), chain_clause_ptr))
     {
         // order of the clauses determined using the minimal number of dereferences
-        clause_t distributing_clause = *distributing_clause_ptr;
-        clause_t higher_index_clause, lower_index_clause,
-            *higher_index_clause_ptr, *lower_index_clause_ptr;
-        if (distributing_clause.index > chain_clause.index)
+        clause_t *higher_index_clause_ptr, *lower_index_clause_ptr;
+
+        if (distributing_clause_ptr->index > chain_clause_ptr->index)
         {
-            lower_index_clause = chain_clause;
             lower_index_clause_ptr = chain_clause_ptr;
-            higher_index_clause = distributing_clause;
             higher_index_clause_ptr = distributing_clause_ptr;
         }
         else
         {
-            lower_index_clause = distributing_clause;
             lower_index_clause_ptr = distributing_clause_ptr;
-            higher_index_clause = chain_clause;
             higher_index_clause_ptr = chain_clause_ptr;
         }
 
-        clause_t *current_ptr = higher_index_clause.next,
-                 current = *current_ptr;
+        clause_t *current_ptr = higher_index_clause_ptr->next;
 
         // in case that the higher (and the lower) index clause are above the current rat clause
         // keep a reference in order to link the todo's at the point of the current rat clause
-        if (current.purity != todo && higher_index_clause.index < current_rat_index)
+        if (current_ptr && current_ptr->purity != todo &&
+            higher_index_clause_ptr->index < current_rat_index)
         {
             PUSH(todo_clauses, higher_index_clause_ptr);
         }
 
         // looking for the same todo
-        while (current.purity == todo)
+        while (current_ptr && current_ptr->purity == todo)
         {
-            if (current.index == lower_index_clause.index)
+            if (current_ptr->index == lower_index_clause_ptr->index)
             {
                 increment_stat(reused_todos);
                 return current_ptr;
             }
-            current_ptr = current.next;
-            current = *current_ptr;
+            current_ptr = current_ptr->next;
         }
 
         increment_stat(new_todos);
         clause_t *result;
 
         // Three cases for todo's to be created
-        // 1. higher index clause bellow the current rat
-        //    the lower index clause has to be distributed (later, since bit_vector in use) over the higher
-        //    index clause's chain. Keeping hints to the lower index clause and the distributing literal.
-        if (higher_index_clause.index > current_rat_index)
+        if (higher_index_clause_ptr->index > current_rat_index)
         {
-            clause_t **chain = malloc(sizeof(clause_t *) * (higher_index_clause.chain.size));
-            memcpy(chain, higher_index_clause.chain.clauses, sizeof(clause_t *) * higher_index_clause.chain.size);
-            literal_t *pivots = malloc(sizeof(literal_t) * (higher_index_clause.chain.size - 1));
-            memcpy(pivots, higher_index_clause.chain.pivots, sizeof(literal_t) * (higher_index_clause.chain.size - 1));
-            result = resolve(distributing_clause, chain_clause, distributing_literal, chain, pivots, higher_index_clause.chain.size);
+            clause_t **chain = malloc(sizeof(clause_t *) * higher_index_clause_ptr->chain.size);
+            memcpy(chain, higher_index_clause_ptr->chain.clauses,
+                   sizeof(clause_t *) * higher_index_clause_ptr->chain.size);
+            literal_t *pivots = malloc(sizeof(literal_t) * (higher_index_clause_ptr->chain.size - 1));
+            memcpy(pivots, higher_index_clause_ptr->chain.pivots,
+                   sizeof(literal_t) * (higher_index_clause_ptr->chain.size - 1));
+            result = resolve(distributing_clause_ptr, chain_clause_ptr, distributing_literal,
+                             chain, pivots, higher_index_clause_ptr->chain.size);
             result->hint = lower_index_clause_ptr == distributing_clause_ptr ? distributing_literal : NEG(distributing_literal);
             result->hint_clause = lower_index_clause_ptr;
         }
-        // 2. todo clauses where the higher index is the current rat index
-        //    the chain can be reconstructed from the rat's chain using the negative hints (hint to the lower index clause is kept)
-        //    also the pivots need to be reconstructed, since the rat chain is pivot-less. (all done during finish_todos)
-        else if (higher_index_clause.index == current_rat_index)
+        else if (higher_index_clause_ptr->index == current_rat_index)
         {
-            result = resolve(distributing_clause, chain_clause, distributing_literal, NULL, NULL, 0);
+            result = resolve(distributing_clause_ptr, chain_clause_ptr, distributing_literal,
+                             NULL, NULL, 0);
             result->hint_clause = lower_index_clause_ptr;
         }
-        // 3. todo clauses where the higher index is lower than the rat index
-        //    the chain is simply the resolution of the two clauses given the distributing literal
-        //    (the todo's are relinked to the position of the current rat clause during finish_todos)
         else
         {
             clause_t **chain = malloc(sizeof(clause_t *) * 2);
@@ -299,31 +275,33 @@ clause_t *E_star(clause_t *chain_clause_ptr, clause_t *distributing_clause_ptr, 
             chain[1] = distributing_clause_ptr;
             literal_t *pivots = malloc(sizeof(literal_t));
             pivots[0] = distributing_literal;
-            result = resolve(chain_clause, distributing_clause, distributing_literal, chain, pivots, 2);
+            result = resolve(chain_clause_ptr, distributing_clause_ptr, distributing_literal,
+                             chain, pivots, 2);
         }
+
         // linking the new todo clause
-        higher_index_clause.next->prev = result;
-        result->next = higher_index_clause.next;
+        if (higher_index_clause_ptr->next)
+        {
+            higher_index_clause_ptr->next->prev = result;
+            result->next = higher_index_clause_ptr->next;
+        }
         result->prev = higher_index_clause_ptr;
         higher_index_clause_ptr->next = result;
         return result;
     }
-    else
-    // the chain_clause doesn't have to be resolved with the distributing clause
-    {
-        return chain_clause_ptr;
-    }
+
+    return chain_clause_ptr;
 }
 
-void chain_distribution(clause_t *distributing_clause_ptr, literal_t distributing_literal, clause_t *chain_clause_ptr, unsigned index)
+void chain_distribution(clause_t *distributing_clause_ptr, literal_t distributing_literal,
+                        clause_t *chain_clause_ptr, unsigned index)
 {
-    clause_t distributing_clause = *distributing_clause_ptr;
-    bit_vector_set_clause_literals(distributing_clause);
+    bit_vector_set_clause_literals(distributing_clause_ptr);
 
     struct subsumption_merge_chain chain = chain_clause_ptr->chain;
     unsigned write_index = index;
 
-    // special case if index points to distributing clause (Writes over it later, since write pointer still points to it)
+    // special case if index points to distributing clause
     if (chain.clauses[index] == distributing_clause_ptr)
         index++;
 
@@ -346,7 +324,7 @@ void chain_distribution(clause_t *distributing_clause_ptr, literal_t distributin
     }
     chain.clauses[write_index] = E_star(chain.clauses[index], distributing_clause_ptr, distributing_literal);
     chain_clause_ptr->chain.size = write_index + 1;
-    bit_vector_clear_clause_literals(distributing_clause);
+    bit_vector_clear_clause_literals(distributing_clause_ptr);
 }
 
 // atexit

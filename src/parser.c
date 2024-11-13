@@ -1,5 +1,6 @@
 #include "parser.h"
 #include "stats.h"
+#include <string.h>
 
 struct index_stack lookup_table;
 struct clause_stack lookup_stack;
@@ -37,10 +38,19 @@ static inline clause_t *clause_create(index_t index, clause_t *prev, struct lite
   unsigned chain_size = SIZE(chain);
   chain.begin = realloc(chain.begin, SIZE(chain) * sizeof(clause_t *));
 
-  literals.begin = realloc(literals.begin, literal_count * sizeof(literal_t));
+  // Allocate the clause and literals array together
+  clause_t *clause = malloc(sizeof(clause_t) + literal_count * sizeof(literal_t));
+  ASSERT_ERROR(clause, "clause_create: malloc failed");
+
+  // Sort literals before copying
   qsort(literals.begin, literal_count, sizeof(literal_t), literal_compare);
 
-  clause_t *clause = malloc(sizeof(clause_t));
+  // Copy literals directly into the flexible array member
+  memcpy(clause->literals, literals.begin, literal_count * sizeof(literal_t));
+
+  // Free the original literals array
+  free(literals.begin);
+
   *clause = (clause_t){
       .purity = pure,
       .is_rat = is_rat,
@@ -53,8 +63,9 @@ static inline clause_t *clause_create(index_t index, clause_t *prev, struct lite
           .size = chain_size,
           .pivots = NULL,
           .clauses = chain.begin},
-      .literal_count = literal_count,
-      .literals = literals.begin};
+      .literal_count = literal_count
+      // literals are already copied above
+  };
 
   return clause;
 }

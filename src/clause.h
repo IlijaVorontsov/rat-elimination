@@ -31,36 +31,48 @@ typedef struct clause
     struct clause *hint_clause;
     struct subsumption_merge_chain chain;
     unsigned literal_count;
-    literal_t *literals;
+    literal_t literals[]; // Flexible array member
 } clause_t;
 
 extern bool *bit_vector;
 
-#define is_dimacs_clause(C) (!(C).is_rat && (C).chain.size == 0)
-#define is_rat_clause(C) ((C).is_rat)
-#define is_rup_clause(C) (!(C).is_rat && (C).chain.size > 0)
+// Updated macros to use pointers
+#define is_dimacs_clause(C) (!((C)->is_rat) && (C)->chain.size == 0)
+#define is_rat_clause(C) ((C)->is_rat)
+#define is_rup_clause(C) (!((C)->is_rat) && (C)->chain.size > 0)
 
+// Updated function prototypes to use pointers consistently
 void clause_release(clause_t *clause_ptr);
-
-void clause_fprint(FILE *file, clause_t clause);
-void clause_fprint_with_pivots(FILE *file, clause_t clause);
-
+void clause_fprint(FILE *file, clause_t *clause);
+void clause_fprint_with_pivots(FILE *file, clause_t *clause);
 void clause_reconstruct_pivots(clause_t *clause_ptr);
-clause_t *resolve(clause_t left, clause_t right, literal_t resolvent, clause_t **chain, literal_t *pivots, unsigned chain_size);
 
-bool literal_in_clause(literal_t literal, clause_t clause);
-signed char var_in_clause(literal_t literal, clause_t clause);
+// Update these functions to use pointers
+bool literal_in_clause(literal_t literal, clause_t *clause_ptr);
+signed char var_in_clause(literal_t literal, clause_t *clause_ptr);
 
 struct subsumption_merge_chain get_chain(struct subsumption_merge_chain rat_chain, clause_t *clause_ptr);
+
+// Remove static inline declarations from header - move implementations to clause.c
+void fprint_rat_literals(FILE *file, clause_t *clause);
+void fprint_clause_literals(FILE *file, clause_t *clause);
+void fprint_chain(FILE *file, struct subsumption_merge_chain chain);
+void fprint_chain_with_pivots(FILE *file, struct subsumption_merge_chain chain);
+void fprint_rat_chain(FILE *file, struct subsumption_merge_chain chain);
+
+// Keep resolve with pointer parameters
+clause_t *resolve(clause_t *left_ptr, clause_t *right_ptr, literal_t resolvent,
+                  clause_t **chain, literal_t *pivots, unsigned chain_size);
 
 #define TAG_CHAIN_HINT_NEG 1
 #define SET_NEG_CHAIN_HINT(P) ((struct clause *)((uintptr_t)(P) | TAG_CHAIN_HINT_NEG))
 #define IS_NEG_CHAIN_HINT(P) ((uintptr_t)(P) & TAG_CHAIN_HINT_NEG)
 #define GET_CHAIN_HINT_PTR(P) ((struct clause *)((uintptr_t)(P) & ~TAG_CHAIN_HINT_NEG))
 
-#define all_literals_in_clause(L, C)                                                     \
-    literal_t L, *L##_begin = (C).literals, *L##_end = (C).literals + (C).literal_count; \
-    (L##_begin != L##_end) && (L = *L##_begin, true);                                    \
+// Updated macro to use pointers consistently
+#define all_literals_in_clause(L, C)                                                        \
+    literal_t L, *L##_begin = (C)->literals, *L##_end = (C)->literals + (C)->literal_count; \
+    (L##_begin != L##_end) && (L = *L##_begin, true);                                       \
     ++L##_begin
 
 #define all_chain_clause_ptrs_in_clause_chain(CP, CH)                                 \
@@ -74,32 +86,25 @@ struct subsumption_merge_chain get_chain(struct subsumption_merge_chain rat_chai
         bit_vector = calloc((max_variable << 1) + 1, sizeof(bool)); \
     } while (0)
 
-#define bit_vector_set_clause_literals(C)                \
-    do                                                   \
-    {                                                    \
-        for (unsigned i = 0; i < (C).literal_count; i++) \
-            bit_vector[(C).literals[i]] = true;          \
-    } while (0)
-
-#define bit_vector_set_clause_pivots(C)               \
-    do                                                \
-    {                                                 \
-        for (unsigned i = 0; i < (C).chain.size; i++) \
-            bit_vector[(C).chain.pivots[i]] = true;   \
-    } while (0)
-
-#define bit_vector_clear_clause_literals(C)              \
-    do                                                   \
-    {                                                    \
-        for (unsigned i = 0; i < (C).literal_count; i++) \
-            bit_vector[(C).literals[i]] = false;         \
-    } while (0)
-
-#define bit_vector_clear_clause_pivots(C)                 \
+#define bit_vector_set_clause_literals(C)                 \
     do                                                    \
     {                                                     \
-        for (unsigned i = 0; i < (C).chain.size - 1; i++) \
-            bit_vector[(C).chain.pivots[i]] = false;      \
+        for (unsigned i = 0; i < (C)->literal_count; i++) \
+            bit_vector[(C)->literals[i]] = true;          \
+    } while (0)
+
+#define bit_vector_clear_clause_literals(C)               \
+    do                                                    \
+    {                                                     \
+        for (unsigned i = 0; i < (C)->literal_count; i++) \
+            bit_vector[(C)->literals[i]] = false;         \
+    } while (0)
+
+#define bit_vector_clear_clause_pivots(C)                  \
+    do                                                     \
+    {                                                      \
+        for (unsigned i = 0; i < (C)->chain.size - 1; i++) \
+            bit_vector[(C)->chain.pivots[i]] = false;      \
     } while (0)
 
 #endif /* __clause_h__ */

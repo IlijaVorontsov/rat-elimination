@@ -13,11 +13,14 @@
         exit(1);                       \
     } while (0)
 
-#define ASSERT_ERROR(COND, FMT, ...)   \
-    do                                 \
-    {                                  \
-        if (!(COND))                   \
-            ERROR(FMT, ##__VA_ARGS__); \
+#define ASSERT_ERROR(condition, message, ...)             \
+    do                                                    \
+    {                                                     \
+        if (!(condition))                                 \
+        {                                                 \
+            fprintf(stderr, message "\n", ##__VA_ARGS__); \
+            exit(EXIT_FAILURE);                           \
+        }                                                 \
     } while (0)
 
 #endif /* __msg_h__ */
