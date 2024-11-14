@@ -15,3 +15,8 @@ tests/*.drup
 tests/*.drat
 out.txt
 benchmarking
+benchmarks
+*pdf
+*txt
+*prof
+optimisations
