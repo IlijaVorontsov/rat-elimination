@@ -21,9 +21,11 @@ int main(int argc, char *argv[])
     ASSERT_ERROR(output, "main: fopen failed for %s", args.lrat_out);
 
     // Parsing the proof
+    time_start(parse_dimacs_lrat);
     struct proof proof = parse_dimacs_lrat(args.dimacs_filename, args.lrat_filename);
-    if (args.verbose)
-        print_header();
+    time_end(parse_dimacs_lrat);
+
+    print_header();
 
     while (!EMPTY(proof.rat_clauses) && !quit)
     {
@@ -68,11 +70,12 @@ int main(int argc, char *argv[])
         time_end(elimination);
         timeit(finish_todos, current_rat_clause_ptr);
         proof_unlink_free(current_rat_clause_ptr);
-        if (args.verbose)
-            print_stats();
     }
+    time_start(misc);
     proof_fprint_final(output, proof, args.print_pivots && EMPTY(proof.rat_clauses));
+    time_end(misc);
     time_end(total);
+    print_stats();
     exit(0);
 }
 
