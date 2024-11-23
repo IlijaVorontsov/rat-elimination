@@ -71,8 +71,8 @@ int main(int argc, char *argv[])
     }
     proof_fprint_final(output, proof, args.print_pivots && EMPTY(proof.rat_clauses));
     time_end(total);
-    print_stats();
-    fflush(stdout);
+    if (args.verbose)
+        print_stats();
     exit(0);
 }
 

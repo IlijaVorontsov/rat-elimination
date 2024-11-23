@@ -14,3 +14,8 @@ tests/*.lrup
 tests/*.drup
 tests/*.drat
 out.txt
+benchmarks
+optimisations
+*.txt
+*.pdf
+*.prof
