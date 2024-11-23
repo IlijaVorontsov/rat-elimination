@@ -30,6 +30,8 @@ void proof_fprint_all(FILE *stream, struct proof proof);
 
 void proof_fprint_final(FILE *stream, struct proof proof, bool print_pivots);
 
+void proof_fprint_tracecheck(FILE *stream, struct proof proof);
+
 /**
  * @brief Unlinks (by linking prev and next) and frees clause_ptr.
  * @return pointer to the next clause.

@@ -69,7 +69,8 @@ int main(int argc, char *argv[])
         timeit(finish_todos, current_rat_clause_ptr);
         proof_unlink_free(current_rat_clause_ptr);
     }
-    proof_fprint_final(output, proof, args.print_pivots && EMPTY(proof.rat_clauses));
+    // proof_fprint_final(output, proof, args.print_pivots && EMPTY(proof.rat_clauses));
+    proof_fprint_tracecheck(output, proof);
     time_end(total);
     if (args.verbose)
         print_stats();

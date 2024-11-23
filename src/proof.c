@@ -59,6 +59,31 @@ void proof_fprint_all(FILE *stream, struct proof proof)
     }
 }
 
+void proof_fprint_tracecheck(FILE *stream, struct proof proof)
+{
+    struct clause *current_ptr = proof.begin;
+    index_t index = 1;
+    while (current_ptr)
+    {
+        struct clause current = *current_ptr;
+        current_ptr->index = index;
+        fprintf(stream, "%llu ", index++);
+
+        for (all_literals_in_clause(literal, current))
+            fprintf(stream, "%d ", TO_DIMACS(literal));
+        fprintf(stream, "0 ");
+
+        for (int i = current.chain.size - 1; i >= 0; i--)
+        {
+            ASSERT_ERROR(current.chain.clauses[i], "fprint_chain: chain_clause_ptr is NULL");
+            fprintf(stream, "%llu ", current.chain.clauses[i]->index);
+        }
+        fprintf(stream, "0\n");
+
+        current_ptr = current.next;
+    }
+}
+
 /**
  * @brief Prints the non-dimacs proof (as lrat) with deletions and unifies subsumptions that are equal.
  *
